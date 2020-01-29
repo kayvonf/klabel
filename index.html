@@ -117,7 +117,7 @@
 
 			this.set_cursor_position(event.offsetX, event.offsetY);
 
-			var p = new Point2D(event.offsetX, event.offsetY);
+			var p = new Point2D(this.cursorx, this.cursory);
 			this.inProgressPoints.push(p);
 
 			console.log("Click at x=" + p.x + ", y=" + p.y + " point " + this.inProgressPoints.length);
