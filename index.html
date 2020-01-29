@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>KLabel Test</title>
+<script>
+
+	class BBox2d {
+		constructor() {
+			// initialize to an empty bounding box
+			this.minx = Number.MAX_SAFE_INTEGER;
+			this.miny = Number.MAX_SAFE_INTEGER;
+			this.maxx = Number.MIN_SAFE_INTEGER;
+			this.maxy = Number.MIN_SAFE_INTEGER;
+		}
+
+		set(startx, starty, endx, endy) {
+			this.minx = startx;
+			this.miny = starty;
+			this.maxx = endx;
+			this.maxy = endy;
+		}
+	}
+
+	class ImageLabeler {
+
+		constructor() {
+			this.image_loaded = true;
+			this.canvas_el = null;
+			this.canvas_width = 0;
+			this.canvas_height = 0;
+
+			this.source_image = new Image;
+		}
+
+		handle_image_loaded = event => {
+
+			console.log("Image loaded.");
+			this.image_loaded = true;
+			ctx.drawImage(this.source_image, 0, 0, this.canvas_width, this.canvas_height);
+		}
+
+		handle_canvas_mousemove = event => {
+			var x = event.offsetX;
+			var y = event.offsetY;
+
+			if (this.image_loaded) {
+				console.log('x=' + x + ', y=' + y);
+				this.render(x, y);
+			}
+		}
+
+		load_image(url) {
+			console.log('Starting image load: ' + url);
+			this.source_image.src = url;
+		}
+
+		render(x, y) {
+			var ctx = this.canvas_el.getContext('2d');
+
+			ctx.clearRect(0, 0, this.canvas_el.width, this.canvas_el.height);
+			ctx.drawImage(this.source_image, 0, 0, this.canvas_width, this.canvas_height);
+
+			ctx.beginPath();
+			ctx.moveTo(x, 0);
+			ctx.lineTo(x, this.canvas_height);
+			ctx.stroke();
+
+			ctx.beginPath();
+			ctx.moveTo(0, y);
+			ctx.lineTo(this.canvas_width, y);
+			ctx.stroke();
+		}
+
+		init(canvas_el) {
+
+			console.log("Initialzing labeler.");
+
+			this.canvas_el = canvas_el;
+			this.canvas_width = this.canvas_el.width;
+			this.canvas_height = this.canvas_el.height;
+			this.canvas_el.addEventListener("mousemove", this.handle_canvas_mousemove, false);
+
+			this.source_image.onload = this.handle_image_load;
+
+			var ctx = this.canvas_el.getContext('2d');
+			ctx.lineWidth = 1;
+			ctx.strokeStyle = "rgba(0,255,255,0.5)";
+		}
+	}
+
+	var canvas_id = 'myCanvas';
+	var labeler = new ImageLabeler;
+
+	function handle_onload() {
+		var myCanvas = document.getElementById(canvas_id);
+		labeler.init(myCanvas);
+		labeler.load_image("testimage.jpg");
+	}
+
+	function button_load_image() {
+		labeler.load_image("testimage.jpg");
+	}
+
+
+</script>
+</head>
+<body onload="handle_onload()">
+	<p>This is a test.</p>
+
+<div>
+	<canvas id="myCanvas" width="960" height="540" style="border: 10px solid #c0c0c0;">
+	</canvas>
+</div>
+
+<div>
+	<button type="button" onclick="button_load_image()">Click Me!</button>
+</div>
+
+</body>
+</html>
