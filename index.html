@@ -4,87 +4,276 @@
 	<title>KLabel Test</title>
 <script>
 
-	class BBox2d {
-		constructor() {
-			// initialize to an empty bounding box
-			this.minx = Number.MAX_SAFE_INTEGER;
-			this.miny = Number.MAX_SAFE_INTEGER;
-			this.maxx = Number.MIN_SAFE_INTEGER;
-			this.maxy = Number.MIN_SAFE_INTEGER;
+	class Point2D {
+
+		constructor(x, y) {
+			//if (x===undefined) // parameter was omitted in call
+        	//	x = 0.0;
+        	//if (y===undefined) // parameter was omitted in call
+        	//	y = 0.0;
+
+			this.x = x;
+			this.y = y;
+		}
+	}
+
+	class ObjInstance {
+		constructor(bbox, extremePoints) {
+			this.bbox = bbox;
+			this.extremePoints = extremePoints;
+		}
+	}
+
+	class BBox2D {
+		constructor(startx, starty, width, height) {
+			this.bmin = new Point2D(startx, starty);
+			this.bmax = new Point2D(this.bmin.x + width, this.bmin.y + height);
 		}
 
-		set(startx, starty, endx, endy) {
-			this.minx = startx;
-			this.miny = starty;
-			this.maxx = endx;
-			this.maxy = endy;
+		isEmpty() {
+			return (this.bmin.x >= this.bmax.y || this.bmin.y >= this.bmax.y);
+		}
+
+		set(startx, starty, width, height) {
+			this.bmin.x = startx;
+			this.bmin.y = starty;
+			this.bmax.x = this.bmin.x + width;
+			this.bmax.y = this.bmin.y + height;
+		}
+
+		inside(x, y) {
+			if (x >= this.bmin.x && x <= this.bmax.x &&
+				y >= this.bmin.y && y <= this.bmax.y)
+				return true;
+			else
+				return false;
+		}
+
+		static extremePointsToBBox(p0, p1, p2, p3) {
+
+			// p0 = left
+			// p1 = top
+			// p2 = right
+			// p3 = bottom
+
+			var startx = p0.x;
+			var starty = p1.y;
+			var endx = p2.x;
+			var endy = p3.y;
+			var b = new BBox2D(startx, starty, endx - startx, endy - starty);
+			console.log(b);
+			return b;
 		}
 	}
 
 	class ImageLabeler {
 
 		constructor() {
-			this.image_loaded = true;
-			this.canvas_el = null;
-			this.canvas_width = 0;
-			this.canvas_height = 0;
 
+			this.main_canvas_el = null;
+			this.main_canvas_width = 0;
+			this.main_canvas_height = 0;
+
+			this.cursorx = Number.MIN_SAFE_INTEGER;
+			this.cursory = Number.MIN_SAFE_INTEGER;
+
+			this.image_loaded = false;
 			this.source_image = new Image;
+
+			this.objInstances = []
+			this.inProgressPoints = [];
 		}
 
-		handle_image_loaded = event => {
+		// Clamp the cursor to the image dimensions so that clicks and bounding boxes
+		// are always on the image.
+		set_cursor_position(x,y) {
+			this.cursorx = Math.min(this.main_canvas_width-1, Math.max(0, x));
+			this.cursory = Math.min(this.main_canvas_height-1, Math.max(0, y));	
+		}
 
-			console.log("Image loaded.");
+		handle_image_load = event => {
+			console.log("KLabeler: Image loaded.");
 			this.image_loaded = true;
-			ctx.drawImage(this.source_image, 0, 0, this.canvas_width, this.canvas_height);
+			this.render();
 		}
 
 		handle_canvas_mousemove = event => {
-			var x = event.offsetX;
-			var y = event.offsetY;
+			this.set_cursor_position(event.offsetX, event.offsetY);
+			this.render();
+		}
 
-			if (this.image_loaded) {
-				console.log('x=' + x + ', y=' + y);
-				this.render(x, y);
+		handle_canvas_mouseover = event => {
+			this.set_cursor_position(event.offsetX, event.offsetY);		
+			this.render();
+		}
+
+		handle_canvas_mouseout = event => {
+			this.cursorx = Number.MIN_SAFE_INTEGER;
+			this.cursory = Number.MIN_SAFE_INTEGER;
+			this.render();
+		}
+
+		handle_canvas_click = event => {
+
+			this.set_cursor_position(event.offsetX, event.offsetY);
+
+			var p = new Point2D(event.offsetX, event.offsetY);
+			this.inProgressPoints.push(p);
+
+			console.log("Click at x=" + p.x + ", y=" + p.y + " point " + this.inProgressPoints.length);
+
+			if (this.inProgressPoints.length == 4) {
+				var newBBox = BBox2D.extremePointsToBBox(
+					this.inProgressPoints[0],
+					this.inProgressPoints[1],
+					this.inProgressPoints[2],
+					this.inProgressPoints[3]);
+
+				var newObj = new ObjInstance(newBBox, this.inProgressPoints);
+
+				this.objInstances.push(newObj);
+
+				var str = "New box: x=[" + newBBox.bmin.x + ", " + newBBox.bmax.y + "], y=[" + newBBox.bmin.y + ", " + newBBox.bmax.y + "]"
+				console.log(str);
+				console.log("There are now " + this.objInstances.length + " boxes.");
+
+				this.inProgressPoints = [];
 			}
+
+			this.render();
 		}
 
 		load_image(url) {
-			console.log('Starting image load: ' + url);
+			// initiate loading of the image to label
+			console.log('KLabeler: Starting image load: ' + url);
 			this.source_image.src = url;
 		}
 
-		render(x, y) {
-			var ctx = this.canvas_el.getContext('2d');
-
-			ctx.clearRect(0, 0, this.canvas_el.width, this.canvas_el.height);
-			ctx.drawImage(this.source_image, 0, 0, this.canvas_width, this.canvas_height);
-
-			ctx.beginPath();
-			ctx.moveTo(x, 0);
-			ctx.lineTo(x, this.canvas_height);
-			ctx.stroke();
-
-			ctx.beginPath();
-			ctx.moveTo(0, y);
-			ctx.lineTo(this.canvas_width, y);
-			ctx.stroke();
+		clear_boxes() {
+			this.inProgressPoints = [];
+			this.objInstances = [];
+			this.render();
 		}
 
-		init(canvas_el) {
+		isHovering() {
+			return (this.cursorx >= 0 && this.cursory >= 0);
+		}
 
-			console.log("Initialzing labeler.");
+		render() {
+			var ctx = this.main_canvas_el.getContext('2d');
 
-			this.canvas_el = canvas_el;
-			this.canvas_width = this.canvas_el.width;
-			this.canvas_height = this.canvas_el.height;
-			this.canvas_el.addEventListener("mousemove", this.handle_canvas_mousemove, false);
+			ctx.clearRect(0, 0, this.main_canvas_el.width, this.main_canvas_el.height);
 
+			if (this.image_loaded) {
+				ctx.drawImage(this.source_image, 0, 0, this.main_canvas_width, this.main_canvas_height);
+			} else {
+				ctx.fillStyle = "#c0c0c0";
+				ctx.fillRect(0, 0, this.main_canvas_width, this.main_canvas_height);
+			}
+
+			// draw cursor lines
+
+			if (this.isHovering()) {
+				ctx.lineWidth = 1;
+				ctx.strokeStyle = "rgba(0,255,255,0.5)";
+
+				ctx.beginPath();
+				ctx.moveTo(this.cursorx, 0);
+				ctx.lineTo(this.cursorx, this.main_canvas_height);
+				ctx.stroke();
+
+				ctx.beginPath();
+				ctx.moveTo(0, this.cursory);
+				ctx.lineTo(this.main_canvas_width, this.cursory);
+				ctx.stroke();
+			}
+
+			// draw bounding boxes
+
+			ctx.lineWidth = 2;
+			
+			this.objInstances.forEach( obj => {
+
+				var b = obj.bbox;
+				var cursorInsideBox = b.inside(this.cursorx, this.cursory);
+
+				// highlight boxes if cursor is inside the box
+				if (cursorInsideBox) {
+					ctx.strokeStyle = "rgba(255,200,100,1.0)";
+					ctx.fillStyle = "rgba(255,200,150,0.2)";
+				} else {
+					ctx.strokeStyle = "rgba(255,200,0,0.75)";
+				}
+
+				var w = b.bmax.x - b.bmin.x;
+				var h = b.bmax.y - b.bmin.y;
+				if (cursorInsideBox)
+					ctx.fillRect(b.bmin.x, b.bmin.y, w, h);
+				ctx.strokeRect(b.bmin.x, b.bmin.y, w, h);
+			});
+
+			// render the "in-progress" points (the current partial bounding box)
+
+			if (this.inProgressPoints.length > 0) {
+
+				ctx.lineWidth = 1;
+				ctx.strokeStyle = "rgba(255,255,255,0.75)";
+
+				// draw the points we've locked down
+				ctx.beginPath();
+				ctx.moveTo(this.inProgressPoints[0].x, this.inProgressPoints[0].y);
+				for (var i=1; i<this.inProgressPoints.length; i++) {
+					var cornerx = 0;
+					var cornery = 0;
+					if (i == 1) {
+						cornerx = this.inProgressPoints[0].x;
+						cornery = this.inProgressPoints[1].y;
+					} else if (i == 2) {
+						cornerx = this.inProgressPoints[2].x;
+						cornery = this.inProgressPoints[1].y;
+					} else if (i == 3) {
+						cornerx = this.inProgressPoints[0].x;
+						cornery = this.inProgressPoints[3].y;
+					}
+					ctx.lineTo(cornerx, cornery);
+				}
+
+				// now draw the tentative point
+				if (this.isHovering()) {
+					if (this.inProgressPoints.length == 1) {
+						ctx.lineTo(this.inProgressPoints[0].x, this.cursory);		
+						ctx.lineTo(this.cursorx, this.cursory);
+					} else if (this.inProgressPoints.length == 2) {
+						ctx.lineTo(this.cursorx, this.inProgressPoints[1].y);
+						ctx.lineTo(this.cursorx, this.cursory);
+					} else if (this.inProgressPoints.length == 3) {
+						ctx.lineTo(this.inProgressPoints[2].x, this.cursory);
+						// extrapolation of rest of box
+						ctx.lineTo(this.inProgressPoints[0].x, this.cursory);
+						ctx.lineTo(this.inProgressPoints[0].x, this.inProgressPoints[0].y);
+					}
+				}
+				ctx.stroke();
+			}
+
+		}
+
+		init(main_canvas_el) {
+
+			console.log("Initializing labeler.");
+
+			this.main_canvas_el = main_canvas_el;
+			this.main_canvas_width = this.main_canvas_el.width;
+			this.main_canvas_height = this.main_canvas_el.height;
+			this.main_canvas_el.addEventListener("mousemove", this.handle_canvas_mousemove, false);
+			this.main_canvas_el.addEventListener("click", this.handle_canvas_click, false);
+			this.main_canvas_el.addEventListener("mouseover", this.handle_canvas_mouseover, false);
+			this.main_canvas_el.addEventListener("mouseout", this.handle_canvas_mouseout, false);
+
+			//this.source_image.addEventListener("onload", this.handle_image_load, false);
 			this.source_image.onload = this.handle_image_load;
 
-			var ctx = this.canvas_el.getContext('2d');
-			ctx.lineWidth = 1;
-			ctx.strokeStyle = "rgba(0,255,255,0.5)";
+			var ctx = this.main_canvas_el.getContext('2d');
 		}
 	}
 
@@ -97,23 +286,21 @@
 		labeler.load_image("testimage.jpg");
 	}
 
-	function button_load_image() {
-		labeler.load_image("testimage.jpg");
+	function clear_boxes() {
+		labeler.clear_boxes();
 	}
-
 
 </script>
 </head>
 <body onload="handle_onload()">
-	<p>This is a test.</p>
 
 <div>
-	<canvas id="myCanvas" width="960" height="540" style="border: 10px solid #c0c0c0;">
+	<canvas id="myCanvas" width="960" height="540" style="border: 6px solid #c0c0c0;">
 	</canvas>
 </div>
 
 <div>
-	<button type="button" onclick="button_load_image()">Click Me!</button>
+	<button type="button" onclick="clear_boxes()">Clear Boxes</button>
 </div>
 
 </body>
