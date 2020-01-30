@@ -107,6 +107,9 @@
 			this.color_box_outline = 'rgba(255,200,0,0.75)';
 			this.color_highlight_box_outline = 'rgba(255,200,100,1.0)';
 			this.color_highlight_box_fill = 'rgba(255,200,150,0.2)';
+			this.color_extreme_point_fill = '#ffff00';
+
+			this.extreme_point_radius = 2;
 		}
 
 		// Clamp the cursor to the image dimensions so that clicks and bounding boxes
@@ -187,6 +190,10 @@
 
 		isHovering() {
 			return (this.cursorx >= 0 && this.cursory >= 0);
+		}
+
+		zoomViewEnabled() {
+			return !(this.zoom_canvas_el === undefined);
 		}
 
 		render() {
@@ -284,36 +291,63 @@
 					}
 				}
 				ctx.stroke();
+
+				// draw dots at all the extreme points
+				var full_circle_angle = 2 * Math.PI;
+				ctx.fillStyle = this.color_extreme_point_fill;
+				for (var i=0; i<this.inProgressPoints.length; i++) {
+					ctx.beginPath();
+      				ctx.arc(this.inProgressPoints[i].x, this.inProgressPoints[i].y, this.extreme_point_radius, 0, full_circle_angle, false);
+			        ctx.fill();
+				}	
+
 			}
 
-			// now render zoom canvas view
-			var ctx = this.zoom_canvas_el.getContext('2d');
-			ctx.clearRect(0, 0, this.zoom_canvas_el.width, this.zoom_canvas_el.height);
+			if (this.zoomViewEnabled()) {
 
-			ctx.fillStyle = this.color_zoom_canvas;
-			ctx.fillRect(0, 0, this.zoom_canvas_width, this.zoom_canvas_height);
+				// now render zoom canvas view
+				var ctx = this.zoom_canvas_el.getContext('2d');
+				ctx.clearRect(0, 0, this.zoom_canvas_el.width, this.zoom_canvas_el.height);
 
-			if (this.isHovering()) {
+				ctx.fillStyle = this.color_zoom_canvas;
+				ctx.fillRect(0, 0, this.zoom_canvas_width, this.zoom_canvas_height);
 
-				// draw zoomed view of image
-				var sw = this.zoom_canvas_width / this.zoom_factor;
-				var sh = this.zoom_canvas_height / this.zoom_factor;
-				var sx = this.source_image.width * this.cursorx / this.main_canvas_width - (sw / 2);
-				var sy = this.source_image.height * this.cursory / this.main_canvas_height - (sh / 2);
+				if (this.isHovering()) {
 
-				//console.log("source_w=" + this.source_image.width + ", source_h=" + this.source_image.height, ", sx=" + sx + ", sy=" + sy);
+					// draw zoomed view of image
+					var sw = this.zoom_canvas_width / this.zoom_factor;
+					var sh = this.zoom_canvas_height / this.zoom_factor;
+					var sx = this.source_image.width * this.cursorx / this.main_canvas_width - (sw / 2);
+					var sy = this.source_image.height * this.cursory / this.main_canvas_height - (sh / 2);
 
-				ctx.imageSmoothingEnabled = false;
-				ctx.drawImage(this.source_image, sx, sy, sw, sh, 0, 0, this.zoom_canvas_width, this.zoom_canvas_height);
+					ctx.imageSmoothingEnabled = false;
+					ctx.drawImage(this.source_image, sx, sy, sw, sh, 0, 0, this.zoom_canvas_width, this.zoom_canvas_height);
 
-				// draw cursor
+					// draw zoomed in cursor 
+					ctx.lineWidth = this.zoom_factor;
+					ctx.strokeStyle = this.color_cursor_lines;
 
+					// lines with greater that one pixel thickness are "centered" about the specified endpoints
+					// offset the line so that that (potentially) thick line is aligned with the pixels in the visualization
+					var offsetx = ctx.lineWidth / 2;
+					var offsety = ctx.lineWidth / 2;
+
+					ctx.beginPath();
+					ctx.moveTo(this.zoom_canvas_width/2 - offsetx, 0);
+					ctx.lineTo(this.zoom_canvas_width/2 - offsetx, this.zoom_canvas_height);
+					ctx.stroke();
+
+					ctx.beginPath();
+					ctx.moveTo(0, this.zoom_canvas_height/2 - offsety);
+					ctx.lineTo(this.zoom_canvas_width, this.zoom_canvas_height/2  - offsety);
+					ctx.stroke();
+				}
 			}
 		}
 
 		init(main_canvas_el, zoom_canvas_id) {
 
-			console.log("Initializing labeler.");
+			console.log("Klabeler: initializing.");
 
 			this.main_canvas_el = main_canvas_el;
 			this.main_canvas_width = this.main_canvas_el.width;
@@ -324,8 +358,11 @@
 			this.main_canvas_el.addEventListener("mouseout", this.handle_canvas_mouseout, false);
 
 			this.zoom_canvas_el = zoom_canvas_id;
-			this.zoom_canvas_width = this.zoom_canvas_el.width;
-			this.zoom_canvas_height = this.zoom_canvas_el.height;
+
+			if (this.zoomViewEnabled()) {
+				this.zoom_canvas_width = this.zoom_canvas_el.width;
+				this.zoom_canvas_height = this.zoom_canvas_el.height;
+			}
 
 			//this.source_image.addEventListener("onload", this.handle_image_load, false);
 			this.source_image.onload = this.handle_image_load;
@@ -343,7 +380,7 @@
 		var zoom_canvas = document.getElementById(zoom_canvas_id);
 		labeler.init(main_canvas, zoom_canvas);
 		labeler.set_image("testimage.jpg");
-		labeler.set_zoom_factor(4);
+		labeler.set_zoom_factor(16);
 	}
 
 	function clear_boxes() {
