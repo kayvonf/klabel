@@ -4,6 +4,17 @@
 	<title>KLabel Test</title>
 <script>
 
+	/*
+		TODO list:
+
+		* zoom view
+		* delete individual bbox
+		* extract bbox data (including extreme points)
+		* move to normalized coordinates
+		* support multiple images
+		* sound
+	*/
+
 	class Point2D {
 
 		constructor(x, y) {
@@ -73,6 +84,11 @@
 			this.main_canvas_el = null;
 			this.main_canvas_width = 0;
 			this.main_canvas_height = 0;
+			this.zoom_canvas_el = null;
+			this.zoom_canvas_width = 0;
+			this.zoom_canvas_height = 0;
+
+			this.zoom_factor = 4;
 
 			this.cursorx = Number.MIN_SAFE_INTEGER;
 			this.cursory = Number.MIN_SAFE_INTEGER;
@@ -82,6 +98,15 @@
 
 			this.objInstances = []
 			this.inProgressPoints = [];
+
+			// colors
+			this.color_main_canvas = '#c0c0c0';
+			this.color_zoom_canvas = '#404040';
+			this.color_cursor_lines = 'rgba(0,255,255,0.5)';
+			this.color_in_progress_box_outline = 'rgba(255,255,255,0.75)';
+			this.color_box_outline = 'rgba(255,200,0,0.75)';
+			this.color_highlight_box_outline = 'rgba(255,200,100,1.0)';
+			this.color_highlight_box_fill = 'rgba(255,200,150,0.2)';
 		}
 
 		// Clamp the cursor to the image dimensions so that clicks and bounding boxes
@@ -143,7 +168,12 @@
 			this.render();
 		}
 
-		load_image(url) {
+		set_zoom_factor(zoom) {
+			this.zoom_factor = zoom;
+			this.render();
+		}
+
+		set_image(url) {
 			// initiate loading of the image to label
 			console.log('KLabeler: Starting image load: ' + url);
 			this.source_image.src = url;
@@ -167,7 +197,7 @@
 			if (this.image_loaded) {
 				ctx.drawImage(this.source_image, 0, 0, this.main_canvas_width, this.main_canvas_height);
 			} else {
-				ctx.fillStyle = "#c0c0c0";
+				ctx.fillStyle = this.color_main_canvas;
 				ctx.fillRect(0, 0, this.main_canvas_width, this.main_canvas_height);
 			}
 
@@ -175,7 +205,7 @@
 
 			if (this.isHovering()) {
 				ctx.lineWidth = 1;
-				ctx.strokeStyle = "rgba(0,255,255,0.5)";
+				ctx.strokeStyle = this.color_cursor_lines;
 
 				ctx.beginPath();
 				ctx.moveTo(this.cursorx, 0);
@@ -199,10 +229,10 @@
 
 				// highlight boxes if cursor is inside the box
 				if (cursorInsideBox) {
-					ctx.strokeStyle = "rgba(255,200,100,1.0)";
-					ctx.fillStyle = "rgba(255,200,150,0.2)";
+					ctx.strokeStyle = this.color_highlight_box_outline;
+					ctx.fillStyle = this.color_highlight_box_fill;
 				} else {
-					ctx.strokeStyle = "rgba(255,200,0,0.75)";
+					ctx.strokeStyle = this.color_box_outline;
 				}
 
 				var w = b.bmax.x - b.bmin.x;
@@ -217,7 +247,7 @@
 			if (this.inProgressPoints.length > 0) {
 
 				ctx.lineWidth = 1;
-				ctx.strokeStyle = "rgba(255,255,255,0.75)";
+				ctx.strokeStyle = this.color_in_progress_box_outline; 
 
 				// draw the points we've locked down
 				ctx.beginPath();
@@ -256,9 +286,32 @@
 				ctx.stroke();
 			}
 
+			// now render zoom canvas view
+			var ctx = this.zoom_canvas_el.getContext('2d');
+			ctx.clearRect(0, 0, this.zoom_canvas_el.width, this.zoom_canvas_el.height);
+
+			ctx.fillStyle = this.color_zoom_canvas;
+			ctx.fillRect(0, 0, this.zoom_canvas_width, this.zoom_canvas_height);
+
+			if (this.isHovering()) {
+
+				// draw zoomed view of image
+				var sw = this.zoom_canvas_width / this.zoom_factor;
+				var sh = this.zoom_canvas_height / this.zoom_factor;
+				var sx = this.source_image.width * this.cursorx / this.main_canvas_width - (sw / 2);
+				var sy = this.source_image.height * this.cursory / this.main_canvas_height - (sh / 2);
+
+				//console.log("source_w=" + this.source_image.width + ", source_h=" + this.source_image.height, ", sx=" + sx + ", sy=" + sy);
+
+				ctx.imageSmoothingEnabled = false;
+				ctx.drawImage(this.source_image, sx, sy, sw, sh, 0, 0, this.zoom_canvas_width, this.zoom_canvas_height);
+
+				// draw cursor
+
+			}
 		}
 
-		init(main_canvas_el) {
+		init(main_canvas_el, zoom_canvas_id) {
 
 			console.log("Initializing labeler.");
 
@@ -270,6 +323,10 @@
 			this.main_canvas_el.addEventListener("mouseover", this.handle_canvas_mouseover, false);
 			this.main_canvas_el.addEventListener("mouseout", this.handle_canvas_mouseout, false);
 
+			this.zoom_canvas_el = zoom_canvas_id;
+			this.zoom_canvas_width = this.zoom_canvas_el.width;
+			this.zoom_canvas_height = this.zoom_canvas_el.height;
+
 			//this.source_image.addEventListener("onload", this.handle_image_load, false);
 			this.source_image.onload = this.handle_image_load;
 
@@ -277,13 +334,16 @@
 		}
 	}
 
-	var canvas_id = 'myCanvas';
+	var main_canvas_id = 'main_canvas';
+	var zoom_canvas_id = 'zoom_canvas';
 	var labeler = new ImageLabeler;
 
 	function handle_onload() {
-		var myCanvas = document.getElementById(canvas_id);
-		labeler.init(myCanvas);
-		labeler.load_image("testimage.jpg");
+		var main_canvas = document.getElementById(main_canvas_id);
+		var zoom_canvas = document.getElementById(zoom_canvas_id);
+		labeler.init(main_canvas, zoom_canvas);
+		labeler.set_image("testimage.jpg");
+		labeler.set_zoom_factor(4);
 	}
 
 	function clear_boxes() {
@@ -295,8 +355,8 @@
 <body onload="handle_onload()">
 
 <div>
-	<canvas id="myCanvas" width="960" height="540" style="border: 6px solid #c0c0c0;">
-	</canvas>
+	<canvas id="main_canvas" width="960" height="540" style="border: 8px solid #c0c0c0;"></canvas>
+	<canvas id="zoom_canvas" width="512" height="270" style="border: 8px solid #c0c0c0;"></canvas>
 </div>
 
 <div>
