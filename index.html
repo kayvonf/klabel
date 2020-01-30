@@ -60,20 +60,39 @@
 				return false;
 		}
 
-		static extremePointsToBBox(p0, p1, p2, p3) {
+		static extremePointsToBBox(pts) {
 
-			// p0 = left
-			// p1 = top
-			// p2 = right
-			// p3 = bottom
+			// pts[0] = left extreme
+			// pts[1] = top extreme
+			// pts[2] = right extreme
+			// pts[3] = bottom extreme
 
-			var startx = p0.x;
-			var starty = p1.y;
-			var endx = p2.x;
-			var endy = p3.y;
+			var startx = pts[0].x;
+			var starty = pts[1].y;
+			var endx = pts[2].x;
+			var endy = pts[3].y;
 			var b = new BBox2D(startx, starty, endx - startx, endy - starty);
-			console.log(b);
 			return b;
+		}
+
+		static valid_extreme_points(pts) {
+			if (pts[0].x > pts[1].x ||
+				pts[0].x > pts[2].x ||
+				pts[0].x > pts[3].x)
+				return false;
+			if (pts[1].y > pts[1].y ||
+				pts[1].y > pts[2].y ||
+				pts[1].y > pts[3].y)
+				return false;
+			if (pts[2].x < pts[1].x ||
+				pts[2].x < pts[2].x ||
+				pts[2].x < pts[3].x)
+				return false;
+			if (pts[3].y < pts[1].y ||
+				pts[3].y < pts[2].y ||
+				pts[3].y < pts[3].y)
+				return false;
+			return true;
 		}
 	}
 
@@ -89,6 +108,7 @@
 			this.zoom_canvas_height = 0;
 
 			this.zoom_factor = 4;
+			this.show_extreme_points = true;
 
 			this.cursorx = Number.MIN_SAFE_INTEGER;
 			this.cursory = Number.MIN_SAFE_INTEGER;
@@ -151,12 +171,15 @@
 			console.log("Click at x=" + p.x + ", y=" + p.y + " point " + this.inProgressPoints.length);
 
 			if (this.inProgressPoints.length == 4) {
-				var newBBox = BBox2D.extremePointsToBBox(
-					this.inProgressPoints[0],
-					this.inProgressPoints[1],
-					this.inProgressPoints[2],
-					this.inProgressPoints[3]);
 
+				if (!BBox2D.valid_extreme_points(this.inProgressPoints)) {
+					alert("Points clicked are not valid extreme points. Discarding box.");
+					this.inProgressPoints = [];
+					this.render();
+					return;
+				}
+
+				var newBBox = BBox2D.extremePointsToBBox(this.inProgressPoints);
 				var newObj = new ObjInstance(newBBox, this.inProgressPoints);
 
 				this.objInstances.push(newObj);
@@ -173,6 +196,11 @@
 
 		set_zoom_factor(zoom) {
 			this.zoom_factor = zoom;
+			this.render();
+		}
+
+		set_extreme_points_viz(status) {
+			this.show_extreme_points = status;
 			this.render();
 		}
 
@@ -247,6 +275,17 @@
 				if (cursorInsideBox)
 					ctx.fillRect(b.bmin.x, b.bmin.y, w, h);
 				ctx.strokeRect(b.bmin.x, b.bmin.y, w, h);
+
+				// draw dots at all the extreme points
+				if (this.show_extreme_points) {
+					var full_circle_angle = 2 * Math.PI;
+					ctx.fillStyle = this.color_extreme_point_fill;
+					for (var i=0; i<4; i++) {
+						ctx.beginPath();
+	      				ctx.arc(obj.extremePoints[i].x, obj.extremePoints[i].y, this.extreme_point_radius, 0, full_circle_angle, false);
+				        ctx.fill();
+					}
+				}	
 			});
 
 			// render the "in-progress" points (the current partial bounding box)
@@ -381,10 +420,26 @@
 		labeler.init(main_canvas, zoom_canvas);
 		labeler.set_image("testimage.jpg");
 		labeler.set_zoom_factor(16);
+
+		var button = document.getElementById("toggle_pt_viz_button");
+		button.toggle_status = true;
 	}
 
 	function clear_boxes() {
 		labeler.clear_boxes();
+	}
+
+	function toggle_extreme_points() {
+		var button = document.getElementById("toggle_pt_viz_button");
+		var new_status = !button.toggle_status;
+		labeler.set_extreme_points_viz(new_status);
+		button.toggle_status = new_status;
+
+		if (new_status == false) {
+			button.innnerHTML = 'Show Extreme Points';
+		} else {
+			button.innnerHTML = 'Hide Extreme Points';
+		}
 	}
 
 </script>
@@ -397,7 +452,8 @@
 </div>
 
 <div>
-	<button type="button" onclick="clear_boxes()">Clear Boxes</button>
+	<button id="clear_button" type="button" onclick="clear_boxes()">Clear Boxes</button>
+	<button id="toggle_pt_viz_button" type="button" onclick="toggle_extreme_points()">Hide Extreme Points</button>
 </div>
 
 </body>
