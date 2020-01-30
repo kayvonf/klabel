@@ -7,7 +7,6 @@
 	/*
 		TODO list:
 
-		* zoom view
 		* delete individual bbox
 		* extract bbox data (including extreme points)
 		* move to normalized coordinates
@@ -161,6 +160,14 @@
 			this.render();
 		}
 
+		handle_canvas_keydown = event => {
+			console.log("KeyDown: " + event.keyCode);
+		}
+
+		handle_canvas_keyup = event => {
+			console.log("KeyUp: " + event.keyCode);
+		}
+
 		handle_canvas_click = event => {
 
 			this.set_cursor_position(event.offsetX, event.offsetY);
@@ -186,7 +193,7 @@
 
 				var str = "New box: x=[" + newBBox.bmin.x + ", " + newBBox.bmax.y + "], y=[" + newBBox.bmin.y + ", " + newBBox.bmax.y + "]"
 				console.log(str);
-				console.log("There are now " + this.objInstances.length + " boxes.");
+				console.log("There are now " + this.objInstances.length + " box(es).");
 
 				this.inProgressPoints = [];
 			}
@@ -395,6 +402,8 @@
 			this.main_canvas_el.addEventListener("click", this.handle_canvas_click, false);
 			this.main_canvas_el.addEventListener("mouseover", this.handle_canvas_mouseover, false);
 			this.main_canvas_el.addEventListener("mouseout", this.handle_canvas_mouseout, false);
+			this.main_canvas_el.addEventListener("keydown", this.handle_canvas_keydown, false);
+			this.main_canvas_el.addEventListener("keyup", this.handle_canvas_keyup, false);
 
 			this.zoom_canvas_el = zoom_canvas_id;
 
