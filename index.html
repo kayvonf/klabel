@@ -8,10 +8,9 @@
 		TODO list:
 
 		* delete individual bbox
-		* extract bbox data (including extreme points)
+		* extract bbox data to client (including extreme points)
 		* move to normalized coordinates
 		* support multiple images
-		* sound
 
 		LICENSES:
 		* This is the "clink" sound:
@@ -130,6 +129,7 @@
 			this.source_image = new Image;
 
 			this.audio_click_sound = null;
+			this.audio_box_done_sound = null;
 
 			this.objInstances = []
 			this.inProgressPoints = [];
@@ -222,14 +222,32 @@
 
 
 			if (this.play_audio) {
-				// if the sound is aready playing, then the subsequent call to play() will do nothing,
-				// since the audio will keep playing from that point it is currently at.  So I reset the
-				// playpack point of the sound to the start of the timeline so that the sound plays again.
-				if (!this.audio_click_sound.ended) {
-					this.audio_click_sound.currentTime = 0.0;
+
+				if (this.inProgressPoints.length == 0) {
+
+					// stop other sounds
+					this.audio_click_sound.pause();
+
+					// play the end of box sound
+
+					// if the sound is aready playing then the subsequent call to play() will do nothing
+					// and the audio will keep playing from that point it is currently at.
+					// (Or if the audio is paused, play() will resume from the paused point)
+					// So I reset the playpack point of the sound to the start of the timeline so that
+					// the sound plays again from the start.
+					this.audio_box_done_sound.currentTime = 0.0;					
+					this.audio_box_done_sound.play();
+
+
+				} else {
+
+					// stop any other sounds
+					this.audio_box_done_sound.pause();
+
+					// play the click sound
+					this.audio_click_sound.currentTime = 0.0;					
+					this.audio_click_sound.play();
 				}
-				
-				this.audio_click_sound.play();
 			}
 		}
 
@@ -450,7 +468,9 @@
 
 			this.source_image.onload = this.handle_image_load;
 
-			this.audio_click_sound = new Audio("media/click_sound.mp3");
+			this.audio_click_sound = new Audio("media/click_sound2.mp3");
+			this.audio_box_done_sound = new Audio("media/click_sound3.mp3");
+
 		}
 	}
 
@@ -462,11 +482,16 @@
 		var main_canvas = document.getElementById(main_canvas_id);
 		var zoom_canvas = document.getElementById(zoom_canvas_id);
 		labeler.init(main_canvas, zoom_canvas);
-		labeler.set_image("testimage.jpg");
-		labeler.set_zoom_factor(16);
+		labeler.set_image("media/testimage.jpg");
+		labeler.set_zoom_factor(8);
 
 		var button = document.getElementById("toggle_pt_viz_button");
 		button.toggle_status = true;
+		labeler.set_extreme_points_viz(button.toggle_status);
+
+		button = document.getElementById("toggle_sound_button");
+		button.toggle_status = false;
+		labeler.set_play_audio(button.toggle_status);
 	}
 
 	function clear_boxes() {
