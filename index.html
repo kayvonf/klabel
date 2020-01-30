@@ -12,6 +12,10 @@
 		* move to normalized coordinates
 		* support multiple images
 		* sound
+
+		LICENSES:
+		* This is the "clink" sound:
+		  https://www.zapsplat.com/music/metal-impact-small-plate-disc-hit-vibrate-and-resonate-2/
 	*/
 
 	class Point2D {
@@ -27,6 +31,10 @@
 		}
 	}
 
+	// An object instance stores the bounding box of the object and the extreme
+	// points used to create the bounding box.  We don't want to disgard the extreme
+	// points provided by the labeler since they contain additional information
+	// about the object's silhouette that is lost if we just store the bounding box.  
 	class ObjInstance {
 		constructor(bbox, extremePoints) {
 			this.bbox = bbox;
@@ -40,10 +48,6 @@
 			this.bmax = new Point2D(this.bmin.x + width, this.bmin.y + height);
 		}
 
-		isEmpty() {
-			return (this.bmin.x >= this.bmax.y || this.bmin.y >= this.bmax.y);
-		}
-
 		set(startx, starty, width, height) {
 			this.bmin.x = startx;
 			this.bmin.y = starty;
@@ -51,6 +55,13 @@
 			this.bmax.y = this.bmin.y + height;
 		}
 
+		isEmpty() {
+			return (this.bmin.x >= this.bmax.y || this.bmin.y >= this.bmax.y);
+		}
+
+		// returns true if point given by (x,y) is inside the bounding box
+		// FIXME(kayvonf): for consistency with the rest of BBox2D, this method
+		// should take a Point2D instead of seperate x and y arguments.
 		inside(x, y) {
 			if (x >= this.bmin.x && x <= this.bmax.x &&
 				y >= this.bmin.y && y <= this.bmax.y)
@@ -59,6 +70,7 @@
 				return false;
 		}
 
+		// converts an array of four extreme points to a bbounding box
 		static extremePointsToBBox(pts) {
 
 			// pts[0] = left extreme
@@ -74,6 +86,11 @@
 			return b;
 		}
 
+		// Returns true if this is a valid set of extreme points, false otherwise.
+		//
+		// To be valid, the first point should be the leftmost point, the second point
+		// should be the uppermost one, the third point should be the rightmost,
+		// and the fourth point should be bottommost.
 		static valid_extreme_points(pts) {
 			if (pts[0].x > pts[1].x ||
 				pts[0].x > pts[2].x ||
@@ -106,14 +123,13 @@
 			this.zoom_canvas_width = 0;
 			this.zoom_canvas_height = 0;
 
-			this.zoom_factor = 4;
-			this.show_extreme_points = true;
-
 			this.cursorx = Number.MIN_SAFE_INTEGER;
 			this.cursory = Number.MIN_SAFE_INTEGER;
 
 			this.image_loaded = false;
 			this.source_image = new Image;
+
+			this.audio_click_sound = null;
 
 			this.objInstances = []
 			this.inProgressPoints = [];
@@ -128,7 +144,11 @@
 			this.color_highlight_box_fill = 'rgba(255,200,150,0.2)';
 			this.color_extreme_point_fill = '#ffff00';
 
-			this.extreme_point_radius = 2;
+			this.play_audio = false;
+			this.zoom_factor = 4;
+			this.show_extreme_points = true;
+			this.extreme_point_radius = 3;
+			
 		}
 
 		// Clamp the cursor to the image dimensions so that clicks and bounding boxes
@@ -199,6 +219,18 @@
 			}
 
 			this.render();
+
+
+			if (this.play_audio) {
+				// if the sound is aready playing, then the subsequent call to play() will do nothing,
+				// since the audio will keep playing from that point it is currently at.  So I reset the
+				// playpack point of the sound to the start of the timeline so that the sound plays again.
+				if (!this.audio_click_sound.ended) {
+					this.audio_click_sound.currentTime = 0.0;
+				}
+				
+				this.audio_click_sound.play();
+			}
 		}
 
 		set_zoom_factor(zoom) {
@@ -211,9 +243,13 @@
 			this.render();
 		}
 
+		set_play_audio(toggle) {
+			this.play_audio = toggle;
+		}
+
 		set_image(url) {
 			// initiate loading of the image to label
-			console.log('KLabeler: Starting image load: ' + url);
+			console.log('KLabeler: Loading image: ' + url);
 			this.source_image.src = url;
 		}
 
@@ -412,10 +448,9 @@
 				this.zoom_canvas_height = this.zoom_canvas_el.height;
 			}
 
-			//this.source_image.addEventListener("onload", this.handle_image_load, false);
 			this.source_image.onload = this.handle_image_load;
 
-			var ctx = this.main_canvas_el.getContext('2d');
+			this.audio_click_sound = new Audio("media/click_sound.mp3");
 		}
 	}
 
@@ -445,17 +480,30 @@
 		button.toggle_status = new_status;
 
 		if (new_status == false) {
-			button.innnerHTML = 'Show Extreme Points';
+			button.innerHTML = 'Show Extreme Points';
 		} else {
-			button.innnerHTML = 'Hide Extreme Points';
+			button.innerHTML = 'Hide Extreme Points';
 		}
+	}
+
+	function toggle_sound() {
+		var button = document.getElementById("toggle_sound_button");
+		var new_status = !button.toggle_status;
+		labeler.set_play_audio(new_status);
+		button.toggle_status = new_status;
+
+		if (new_status == false) {
+			button.innerHTML = 'Turn Sound On';
+		} else {
+			button.innerHTML = 'Turn Sound Off';
+		}		
 	}
 
 </script>
 </head>
 <body onload="handle_onload()">
 
-<div>
+<div id="labeled_div">
 	<canvas id="main_canvas" width="960" height="540" style="border: 8px solid #c0c0c0;"></canvas>
 	<canvas id="zoom_canvas" width="512" height="270" style="border: 8px solid #c0c0c0;"></canvas>
 </div>
@@ -463,7 +511,9 @@
 <div>
 	<button id="clear_button" type="button" onclick="clear_boxes()">Clear Boxes</button>
 	<button id="toggle_pt_viz_button" type="button" onclick="toggle_extreme_points()">Hide Extreme Points</button>
+	<button id="toggle_sound_button" type="button" onclick="toggle_sound()">Turn Sound On</button>
 </div>
+
 
 </body>
 </html>
