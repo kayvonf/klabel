@@ -6,18 +6,26 @@
 	body {
 		font-family: Helvetica, Arial, sans-seris;
 		font-size: 11pt;
+		color: #d0d0d0;
+		background: #404040;
 	}
+
+	body a {
+		color: #d0d0d0;
+	}
+
 </style>
 <script>
 
 	/*
 		TODO list:
-		* delete individual bbox
 		* move to normalized coordinates
 		* extract bbox data to client (including extreme points)
 		* support images with different size/aspect ratio as the canvas
 		* support multiple images
-		* should be able to mouseover the zoom view to get finer control clicking
+		* detect bad extreme points as early as possible
+		* regular bbox mode
+		* single point annotation mode
 
 		LICENSES:
 		* This is the "click1" sound:
@@ -25,26 +33,9 @@
 	*/
 
 	class Point2D {
-
 		constructor(x, y) {
-			//if (x===undefined) // parameter was omitted in call
-        	//	x = 0.0;
-        	//if (y===undefined) // parameter was omitted in call
-        	//	y = 0.0;
-
 			this.x = x;
 			this.y = y;
-		}
-	}
-
-	// An object instance stores the bounding box of the object and the extreme
-	// points used to create the bounding box.  We don't want to disgard the extreme
-	// points provided by the labeler since they contain additional information
-	// about the object's silhouette that is lost if we just store the bounding box.  
-	class ObjInstance {
-		constructor(bbox, extremePoints) {
-			this.bbox = bbox;
-			this.extremePoints = extremePoints;
 		}
 	}
 
@@ -65,9 +56,8 @@
 			return (this.bmin.x >= this.bmax.y || this.bmin.y >= this.bmax.y);
 		}
 
-		// returns true if point given by (x,y) is inside the bounding box
-		// FIXME(kayvonf): for consistency with the rest of BBox2D, this method
-		// should take a Point2D instead of seperate x and y arguments.
+		// returns true if the point (x,y) is inside the bounding box.  Edges of the box
+		// are treated as part of the box. 
 		inside(x, y) {
 			if (x >= this.bmin.x && x <= this.bmax.x &&
 				y >= this.bmin.y && y <= this.bmax.y)
@@ -81,7 +71,7 @@
 			return (this.bmax.x - this.bmin.x) * (this.bmax.y - this.bmin.y);
 		}
 
-		// converts an array of four extreme points to a bbounding box
+		// converts an array of four extreme points to a bbox
 		static extremePointsToBBox(pts) {
 
 			// pts[0] = left extreme
@@ -93,6 +83,20 @@
 			var starty = pts[1].y;
 			var endx = pts[2].x;
 			var endy = pts[3].y;
+
+			var b = new BBox2D(startx, starty, endx - startx, endy - starty);
+			return b;
+		}
+
+		// converts an array of two points to a bbox.  The code makes no assumptions about
+		// which point in the array is which corner of the bbox. 
+		static twoPointsToBBox(pts) {
+
+			var startx = Math.min(pts[0].x, pts[1].x);
+			var starty = Math.min(pts[0].y, pts[1].y);
+			var endx = Math.max(pts[0].x, pts[1].x);
+			var endy = Math.max(pts[0].y, pts[1].y);
+
 			var b = new BBox2D(startx, starty, endx - startx, endy - starty);
 			return b;
 		}
@@ -123,7 +127,22 @@
 		}
 	}
 
+	// An Annotation stores the bounding box of the object and the extreme
+	// points used to create the bounding box.  We don't want to disgard the extreme
+	// points provided by the labeler since they contain additional information
+	// about the object's silhouette that is lost if we just store the bounding box.  
+	class Annotation {
+		constructor(bbox, extremePoints) {
+			this.bbox = bbox;
+			this.extremePoints = extremePoints;
+		}
+	}
+
 	class ImageLabeler {
+
+		static get ANNOTATION_MODE_POINTS() { return 0; }
+		static get ANNOTATION_MODE_REGULAR_BBOX() { return 1; }
+		static get ANNOTATION_MODE_EXTREME_BBOX() { return 2; }
 
 		constructor() {
 
@@ -143,7 +162,8 @@
 			this.audio_click_sound = null;
 			this.audio_box_done_sound = null;
 
-			this.objInstances = []
+			this.annotation_mode = ImageLabeler.ANNOTATION_MODE_REGULAR_BBOX;
+			this.annotations = []
 			this.inProgressPoints = [];
 
 			this.spaceKeyDown = false;
@@ -181,6 +201,14 @@
 			return !(this.zoom_canvas_el === undefined);
 		}
 
+		is_mode_regular_bbox() {
+			return this.annotation_mode == ImageLabeler.ANNOTATION_MODE_REGULAR_BBOX;
+		}
+
+		is_mode_extreme_bbox() {
+			return this.annotation_mode == ImageLabeler.ANNOTATION_MODE_EXTREME_BBOX;
+		}
+
 		// returns the index of the box that is the "selected box" given the current moue position
 		get_selected_object() {
 
@@ -191,11 +219,11 @@
 
 			// select the smallest box that the cursor is in
 			var smallest_area = Number.MAX_VALUE;
-			for (var i=0; i<this.objInstances.length; i++) {
-				if (this.objInstances[i].bbox.inside(this.cursorx, this.cursory) &&
-					this.objInstances[i].bbox.area() < smallest_area) {
+			for (var i=0; i<this.annotations.length; i++) {
+				if (this.annotations[i].bbox.inside(this.cursorx, this.cursory) &&
+					this.annotations[i].bbox.area() < smallest_area) {
 					selected = i;
-					smallest_area = this.objInstances[i].bbox.area();
+					smallest_area = this.annotations[i].bbox.area();
 				}
 			}
 
@@ -206,11 +234,260 @@
 			var selected = this.get_selected_object();
 
 			if (selected != -1) {
-				this.objInstances.splice(selected, 1);
+				this.annotations.splice(selected, 1);
 				console.log("KLabeler: Deleted box " + selected);
 			}
 
 			this.render();
+		}
+
+
+		play_click_audio() {
+
+			// if there are no in progress points, then this must be the last click needed to
+			// make an annotation play the sound corresponding to a finished annotation. 
+			if (this.inProgressPoints.length == 0) {
+
+				// stop other sounds
+				this.audio_click_sound.pause();
+
+				// play the end of box sound
+
+				// if the sound is aready playing then the subsequent call to play() will do nothing
+				// and the audio will keep playing from that point it is currently at.
+				// (Or if the audio is paused, play() will resume from the paused point)
+				// So I reset the playpack point of the sound to the start of the timeline so that
+				// the sound plays again from the start.
+				this.audio_box_done_sound.currentTime = 0.0;					
+				this.audio_box_done_sound.play();
+
+
+			} else {
+
+				// stop other sounds
+				this.audio_box_done_sound.pause();
+
+				// play the click sound
+				this.audio_click_sound.currentTime = 0.0;					
+				this.audio_click_sound.play();
+			}
+		}
+
+		set_zoom_factor(zoom) {
+			this.zoom_factor = zoom;
+			this.render();
+		}
+
+		set_extreme_points_viz(status) {
+			this.show_extreme_points = status;
+			this.render();
+		}
+
+		set_play_audio(toggle) {
+			this.play_audio = toggle;
+		}
+
+		set_image(url) {
+			// initiate loading of the image to label
+			console.log('KLabeler: Loading image: ' + url);
+			this.source_image.src = url;
+		}
+
+		clear_boxes() {
+			this.inProgressPoints = [];
+			this.annotations = [];
+			this.render();
+			console.log("Cleared all boxes.");
+		}
+
+		draw_inprogress_extreme_bbox(ctx) {
+
+			// draw the points we've locked down
+			ctx.beginPath();
+			ctx.moveTo(this.inProgressPoints[0].x, this.inProgressPoints[0].y);
+			for (var i=1; i<this.inProgressPoints.length; i++) {
+				var cornerx = 0;
+				var cornery = 0;
+				if (i == 1) {
+					cornerx = this.inProgressPoints[0].x;
+					cornery = this.inProgressPoints[1].y;
+				} else if (i == 2) {
+					cornerx = this.inProgressPoints[2].x;
+					cornery = this.inProgressPoints[1].y;
+				} else if (i == 3) {
+					cornerx = this.inProgressPoints[0].x;
+					cornery = this.inProgressPoints[3].y;
+				}
+				ctx.lineTo(cornerx, cornery);
+			}
+
+			// now draw the tentative point
+			if (this.is_hovering()) {
+				if (this.inProgressPoints.length == 1) {
+					ctx.lineTo(this.inProgressPoints[0].x, this.cursory);		
+					ctx.lineTo(this.cursorx, this.cursory);
+				} else if (this.inProgressPoints.length == 2) {
+					ctx.lineTo(this.cursorx, this.inProgressPoints[1].y);
+					ctx.lineTo(this.cursorx, this.cursory);
+				} else if (this.inProgressPoints.length == 3) {
+					ctx.lineTo(this.inProgressPoints[2].x, this.cursory);
+					// extrapolation of rest of box
+					ctx.lineTo(this.inProgressPoints[0].x, this.cursory);
+					ctx.lineTo(this.inProgressPoints[0].x, this.inProgressPoints[0].y);
+				}
+			}
+			ctx.stroke();
+
+			// draw dots at all the extreme points
+			var full_circle_angle = 2 * Math.PI;
+			ctx.fillStyle = this.color_extreme_point_fill;
+			for (var i=0; i<this.inProgressPoints.length; i++) {
+				ctx.beginPath();
+  				ctx.arc(this.inProgressPoints[i].x, this.inProgressPoints[i].y, this.extreme_point_radius, 0, full_circle_angle, false);
+		        ctx.fill();
+			}	
+		}
+
+		draw_inprogress_regular_bbox(ctx) {
+
+			var pts = []
+			pts.push(this.inProgressPoints[0]);
+			pts.push(new Point2D(this.cursorx, this.cursory));
+
+			var box = BBox2D.twoPointsToBBox(pts);
+			var w = box.bmax.x - box.bmin.x;
+			var h = box.bmax.y - box.bmin.y;
+			ctx.strokeRect(box.bmin.x, box.bmin.y, w, h);
+		}
+
+		render_zoom_view() {
+
+			var ctx = this.zoom_canvas_el.getContext('2d');
+			ctx.clearRect(0, 0, this.zoom_canvas_el.width, this.zoom_canvas_el.height);
+
+			ctx.fillStyle = this.color_zoom_canvas;
+			ctx.fillRect(0, 0, this.zoom_canvas_width, this.zoom_canvas_height);
+
+			if (this.is_hovering()) {
+
+				// draw zoomed view of image
+				var sw = this.zoom_canvas_width / this.zoom_factor;
+				var sh = this.zoom_canvas_height / this.zoom_factor;
+				var sx = this.source_image.width * this.cursorx / this.main_canvas_width - (sw / 2);
+				var sy = this.source_image.height * this.cursory / this.main_canvas_height - (sh / 2);
+
+				ctx.imageSmoothingEnabled = false;
+				ctx.drawImage(this.source_image, sx, sy, sw, sh, 0, 0, this.zoom_canvas_width, this.zoom_canvas_height);
+
+				// draw zoomed in cursor 
+				ctx.lineWidth = this.zoom_factor;
+				ctx.strokeStyle = this.color_cursor_lines;
+
+				// lines with greater that one pixel thickness are "centered" about the specified endpoints
+				// offset the line so that that (potentially) thick line is aligned with the pixels in the visualization
+				var offsetx = ctx.lineWidth / 2;
+				var offsety = ctx.lineWidth / 2;
+
+				ctx.beginPath();
+				ctx.moveTo(this.zoom_canvas_width/2 - offsetx, 0);
+				ctx.lineTo(this.zoom_canvas_width/2 - offsetx, this.zoom_canvas_height);
+				ctx.stroke();
+
+				ctx.beginPath();
+				ctx.moveTo(0, this.zoom_canvas_height/2 - offsety);
+				ctx.lineTo(this.zoom_canvas_width, this.zoom_canvas_height/2  - offsety);
+				ctx.stroke();
+			}
+		}
+
+		render() {
+
+			var ctx = this.main_canvas_el.getContext('2d');
+
+			ctx.clearRect(0, 0, this.main_canvas_el.width, this.main_canvas_el.height);
+
+			// draw the image to label
+
+			if (this.image_loaded) {
+				ctx.drawImage(this.source_image, 0, 0, this.main_canvas_width, this.main_canvas_height);
+			} else {
+				ctx.fillStyle = this.color_main_canvas;
+				ctx.fillRect(0, 0, this.main_canvas_width, this.main_canvas_height);
+			}
+
+			// draw cursor lines
+
+			if (this.is_hovering()) {
+				ctx.lineWidth = 1;
+				ctx.strokeStyle = this.color_cursor_lines;
+
+				ctx.beginPath();
+				ctx.moveTo(this.cursorx, 0);
+				ctx.lineTo(this.cursorx, this.main_canvas_height);
+				ctx.stroke();
+
+				ctx.beginPath();
+				ctx.moveTo(0, this.cursory);
+				ctx.lineTo(this.main_canvas_width, this.cursory);
+				ctx.stroke();
+			}
+
+			// draw existing bounding boxes
+			
+			var selected = this.get_selected_object();
+
+			for (var obj_id=0; obj_id<this.annotations.length; obj_id++) {
+
+				var obj = this.annotations[obj_id];
+				var selectedObj = (selected == obj_id);
+
+				var w = obj.bbox.bmax.x - obj.bbox.bmin.x;
+				var h = obj.bbox.bmax.y - obj.bbox.bmin.y;
+
+				// highlight the selected box
+				if (selectedObj) {
+					ctx.lineWidth = 3;
+					ctx.strokeStyle = this.color_highlight_box_outline;
+					ctx.fillStyle = this.color_highlight_box_fill;
+					ctx.fillRect(obj.bbox.bmin.x, obj.bbox.bmin.y, w, h);
+				} else {
+					ctx.lineWidth = 2;
+					ctx.strokeStyle = this.color_box_outline;
+				}
+
+				ctx.strokeRect(obj.bbox.bmin.x, obj.bbox.bmin.y, w, h);
+
+				// draw dots indicating all the extreme points (if there are extreme points)
+				if (this.show_extreme_points && obj.extreme_points !== undefined)  {
+					var full_circle_angle = 2 * Math.PI;
+					ctx.fillStyle = this.color_extreme_point_fill;
+					for (var i=0; i<4; i++) {
+						ctx.beginPath();
+	      				ctx.arc(obj.extremePoints[i].x, obj.extremePoints[i].y, this.extreme_point_radius, 0, full_circle_angle, false);
+				        ctx.fill();
+					}
+				}	
+			}
+
+			// render the "in-progress" points (the current partial bounding box)
+
+			if (this.inProgressPoints.length > 0) {
+
+				ctx.lineWidth = 1;
+				ctx.strokeStyle = this.color_in_progress_box_outline; 
+
+				if (this.is_mode_extreme_bbox()) {
+					this.draw_inprogress_extreme_bbox(ctx);
+				} else if (this.is_mode_regular_bbox()) {
+					this.draw_inprogress_regular_bbox(ctx);
+				}
+			}
+
+			// render the "zoomed view"
+
+			if (this.zoom_view_enabled()) {
+				this.render_zoom_view();
+			}
 		}
 
 		handle_image_load = event => {
@@ -266,7 +543,7 @@
 
 			console.log("KLabeler: Click at x=" + p.x + ", y=" + p.y + " point " + this.inProgressPoints.length);
 
-			if (this.inProgressPoints.length == 4) {
+			if (this.is_mode_extreme_bbox() && this.inProgressPoints.length == 4) {
 
 				if (!BBox2D.valid_extreme_points(this.inProgressPoints)) {
 					alert("Points clicked are not valid extreme points. Discarding box.");
@@ -276,236 +553,28 @@
 				}
 
 				var newBBox = BBox2D.extremePointsToBBox(this.inProgressPoints);
-				var newObj = new ObjInstance(newBBox, this.inProgressPoints);
+				var newAnnotation = new Annotation(newBBox, this.inProgressPoints);
 
-				this.objInstances.push(newObj);
+				this.annotations.push(newAnnotation);
 
 				var str = "KLabler: New box: x=[" + newBBox.bmin.x + ", " + newBBox.bmax.y + "], y=[" + newBBox.bmin.y + ", " + newBBox.bmax.y + "]"
 				console.log(str);
-				console.log("KLabeler: There are now " + this.objInstances.length + " box(es).");
+				console.log("KLabeler: There are now " + this.annotations.length + " box(es).");
 
+				this.inProgressPoints = [];
+
+			} else if (this.is_mode_regular_bbox() && this.inProgressPoints.length == 2) {
+
+				var newBBox = BBox2D.twoPointsToBBox(this.inProgressPoints);
+				var newAnnotation = new Annotation(newBBox);
+				this.annotations.push(newAnnotation);
 				this.inProgressPoints = [];
 			}
 
 			this.render();
 
-			if (this.play_audio) {
-
-				if (this.inProgressPoints.length == 0) {
-
-					// stop other sounds
-					this.audio_click_sound.pause();
-
-					// play the end of box sound
-
-					// if the sound is aready playing then the subsequent call to play() will do nothing
-					// and the audio will keep playing from that point it is currently at.
-					// (Or if the audio is paused, play() will resume from the paused point)
-					// So I reset the playpack point of the sound to the start of the timeline so that
-					// the sound plays again from the start.
-					this.audio_box_done_sound.currentTime = 0.0;					
-					this.audio_box_done_sound.play();
-
-
-				} else {
-
-					// stop any other sounds
-					this.audio_box_done_sound.pause();
-
-					// play the click sound
-					this.audio_click_sound.currentTime = 0.0;					
-					this.audio_click_sound.play();
-				}
-			}
-		}
-
-		set_zoom_factor(zoom) {
-			this.zoom_factor = zoom;
-			this.render();
-		}
-
-		set_extreme_points_viz(status) {
-			this.show_extreme_points = status;
-			this.render();
-		}
-
-		set_play_audio(toggle) {
-			this.play_audio = toggle;
-		}
-
-		set_image(url) {
-			// initiate loading of the image to label
-			console.log('KLabeler: Loading image: ' + url);
-			this.source_image.src = url;
-		}
-
-		clear_boxes() {
-			this.inProgressPoints = [];
-			this.objInstances = [];
-			this.render();
-			console.log("Cleared all boxes.");
-		}
-
-		render() {
-			var ctx = this.main_canvas_el.getContext('2d');
-
-			ctx.clearRect(0, 0, this.main_canvas_el.width, this.main_canvas_el.height);
-
-			if (this.image_loaded) {
-				ctx.drawImage(this.source_image, 0, 0, this.main_canvas_width, this.main_canvas_height);
-			} else {
-				ctx.fillStyle = this.color_main_canvas;
-				ctx.fillRect(0, 0, this.main_canvas_width, this.main_canvas_height);
-			}
-
-			// draw cursor lines
-
-			if (this.is_hovering()) {
-				ctx.lineWidth = 1;
-				ctx.strokeStyle = this.color_cursor_lines;
-
-				ctx.beginPath();
-				ctx.moveTo(this.cursorx, 0);
-				ctx.lineTo(this.cursorx, this.main_canvas_height);
-				ctx.stroke();
-
-				ctx.beginPath();
-				ctx.moveTo(0, this.cursory);
-				ctx.lineTo(this.main_canvas_width, this.cursory);
-				ctx.stroke();
-			}
-
-			// draw bounding boxes
-			
-			var selected = this.get_selected_object();
-
-			for (var obj_id=0; obj_id<this.objInstances.length; obj_id++) {
-
-				var obj = this.objInstances[obj_id];
-				var selectedObj = (selected == obj_id);
-
-				var w = obj.bbox.bmax.x - obj.bbox.bmin.x;
-				var h = obj.bbox.bmax.y - obj.bbox.bmin.y;
-
-				// highlight the selected box
-				if (selectedObj) {
-					ctx.lineWidth = 3;
-					ctx.strokeStyle = this.color_highlight_box_outline;
-					ctx.fillStyle = this.color_highlight_box_fill;
-					ctx.fillRect(obj.bbox.bmin.x, obj.bbox.bmin.y, w, h);
-				} else {
-					ctx.lineWidth = 2;
-					ctx.strokeStyle = this.color_box_outline;
-				}
-
-				ctx.strokeRect(obj.bbox.bmin.x, obj.bbox.bmin.y, w, h);
-
-				// draw dots indicating all the extreme points
-				if (this.show_extreme_points) {
-					var full_circle_angle = 2 * Math.PI;
-					ctx.fillStyle = this.color_extreme_point_fill;
-					for (var i=0; i<4; i++) {
-						ctx.beginPath();
-	      				ctx.arc(obj.extremePoints[i].x, obj.extremePoints[i].y, this.extreme_point_radius, 0, full_circle_angle, false);
-				        ctx.fill();
-					}
-				}	
-			}
-
-			// render the "in-progress" points (the current partial bounding box)
-
-			if (this.inProgressPoints.length > 0) {
-
-				ctx.lineWidth = 1;
-				ctx.strokeStyle = this.color_in_progress_box_outline; 
-
-				// draw the points we've locked down
-				ctx.beginPath();
-				ctx.moveTo(this.inProgressPoints[0].x, this.inProgressPoints[0].y);
-				for (var i=1; i<this.inProgressPoints.length; i++) {
-					var cornerx = 0;
-					var cornery = 0;
-					if (i == 1) {
-						cornerx = this.inProgressPoints[0].x;
-						cornery = this.inProgressPoints[1].y;
-					} else if (i == 2) {
-						cornerx = this.inProgressPoints[2].x;
-						cornery = this.inProgressPoints[1].y;
-					} else if (i == 3) {
-						cornerx = this.inProgressPoints[0].x;
-						cornery = this.inProgressPoints[3].y;
-					}
-					ctx.lineTo(cornerx, cornery);
-				}
-
-				// now draw the tentative point
-				if (this.is_hovering()) {
-					if (this.inProgressPoints.length == 1) {
-						ctx.lineTo(this.inProgressPoints[0].x, this.cursory);		
-						ctx.lineTo(this.cursorx, this.cursory);
-					} else if (this.inProgressPoints.length == 2) {
-						ctx.lineTo(this.cursorx, this.inProgressPoints[1].y);
-						ctx.lineTo(this.cursorx, this.cursory);
-					} else if (this.inProgressPoints.length == 3) {
-						ctx.lineTo(this.inProgressPoints[2].x, this.cursory);
-						// extrapolation of rest of box
-						ctx.lineTo(this.inProgressPoints[0].x, this.cursory);
-						ctx.lineTo(this.inProgressPoints[0].x, this.inProgressPoints[0].y);
-					}
-				}
-				ctx.stroke();
-
-				// draw dots at all the extreme points
-				var full_circle_angle = 2 * Math.PI;
-				ctx.fillStyle = this.color_extreme_point_fill;
-				for (var i=0; i<this.inProgressPoints.length; i++) {
-					ctx.beginPath();
-      				ctx.arc(this.inProgressPoints[i].x, this.inProgressPoints[i].y, this.extreme_point_radius, 0, full_circle_angle, false);
-			        ctx.fill();
-				}	
-
-			}
-
-			if (this.zoom_view_enabled()) {
-
-				// now render zoom canvas view
-				var ctx = this.zoom_canvas_el.getContext('2d');
-				ctx.clearRect(0, 0, this.zoom_canvas_el.width, this.zoom_canvas_el.height);
-
-				ctx.fillStyle = this.color_zoom_canvas;
-				ctx.fillRect(0, 0, this.zoom_canvas_width, this.zoom_canvas_height);
-
-				if (this.is_hovering()) {
-
-					// draw zoomed view of image
-					var sw = this.zoom_canvas_width / this.zoom_factor;
-					var sh = this.zoom_canvas_height / this.zoom_factor;
-					var sx = this.source_image.width * this.cursorx / this.main_canvas_width - (sw / 2);
-					var sy = this.source_image.height * this.cursory / this.main_canvas_height - (sh / 2);
-
-					ctx.imageSmoothingEnabled = false;
-					ctx.drawImage(this.source_image, sx, sy, sw, sh, 0, 0, this.zoom_canvas_width, this.zoom_canvas_height);
-
-					// draw zoomed in cursor 
-					ctx.lineWidth = this.zoom_factor;
-					ctx.strokeStyle = this.color_cursor_lines;
-
-					// lines with greater that one pixel thickness are "centered" about the specified endpoints
-					// offset the line so that that (potentially) thick line is aligned with the pixels in the visualization
-					var offsetx = ctx.lineWidth / 2;
-					var offsety = ctx.lineWidth / 2;
-
-					ctx.beginPath();
-					ctx.moveTo(this.zoom_canvas_width/2 - offsetx, 0);
-					ctx.lineTo(this.zoom_canvas_width/2 - offsetx, this.zoom_canvas_height);
-					ctx.stroke();
-
-					ctx.beginPath();
-					ctx.moveTo(0, this.zoom_canvas_height/2 - offsety);
-					ctx.lineTo(this.zoom_canvas_width, this.zoom_canvas_height/2  - offsety);
-					ctx.stroke();
-				}
-			}
+			if (this.play_audio)
+				this.play_click_audio();
 		}
 
 		init(main_canvas_el, zoom_canvas_id) {
