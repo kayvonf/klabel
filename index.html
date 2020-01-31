@@ -294,10 +294,11 @@
 		}
 
 		clear_boxes() {
+			var num_annotations = this.annotations.length;
 			this.inProgressPoints = [];
 			this.annotations = [];
 			this.render();
-			console.log("Cleared all boxes.");
+			console.log("Cleared all " + num_annotations + " boxes.");
 		}
 
 		draw_inprogress_extreme_bbox(ctx) {
@@ -545,6 +546,7 @@
 
 			if (this.is_mode_extreme_bbox() && this.inProgressPoints.length == 4) {
 
+				// validate box.  Discard box if this set of for extreme points is not a valid set of extreme points
 				if (!BBox2D.valid_extreme_points(this.inProgressPoints)) {
 					alert("Points clicked are not valid extreme points. Discarding box.");
 					this.inProgressPoints = [];
@@ -557,17 +559,29 @@
 
 				this.annotations.push(newAnnotation);
 
-				var str = "KLabler: New box: x=[" + newBBox.bmin.x + ", " + newBBox.bmax.y + "], y=[" + newBBox.bmin.y + ", " + newBBox.bmax.y + "]"
-				console.log(str);
+				console.log("KLabeler: New box: x=[" + newBBox.bmin.x + ", " + newBBox.bmax.y + "], y=[" + newBBox.bmin.y + ", " + newBBox.bmax.y + "]");
 				console.log("KLabeler: There are now " + this.annotations.length + " box(es).");
 
 				this.inProgressPoints = [];
 
 			} else if (this.is_mode_regular_bbox() && this.inProgressPoints.length == 2) {
 
+				// validate box.  Discard any empty boxes.
+				if (this.inProgressPoints[0].x == this.inProgressPoints[1].x &&
+					this.inProgressPoints[0].y == this.inProgressPoints[1].y) {
+					alert("Empty bbox. Discarding box.");
+					this.inProgressPoints = [];
+					this.render();
+					return;
+				}
+
 				var newBBox = BBox2D.twoPointsToBBox(this.inProgressPoints);
 				var newAnnotation = new Annotation(newBBox);
 				this.annotations.push(newAnnotation);
+
+				console.log("KLabeler: New box: x=[" + newBBox.bmin.x + ", " + newBBox.bmax.y + "], y=[" + newBBox.bmin.y + ", " + newBBox.bmax.y + "]");
+				console.log("KLabeler: There are now " + this.annotations.length + " box(es).");
+
 				this.inProgressPoints = [];
 			}
 
