@@ -378,7 +378,7 @@
 			// visible region of the image in the image's pixel space
 
 			var cur_frame = this.get_current_frame();
-			var visible_box = this.visible_image_region.scale(cur_frame.source_image.width, cur_frame.source_image.height);
+			var visible_box = this.visible_image_region.scale(cur_frame.source_image.width, cur_frame.source_image.height); 
 
 			// by default: scale the image to fill the entire canvas
 			var display_startx = 0;
@@ -477,10 +477,9 @@
 			ctx.fillStyle = this.color_main_canvas;
 			ctx.fillRect(0, 0, this.main_canvas_el.width, this.main_canvas_el.height);
 
-			// draw the image to label
-
 			var cur_frame = this.get_current_frame();
 
+			// draw the image to label
 
 			if (cur_frame.image_load_complete) {
 
@@ -958,7 +957,7 @@
 <body onload="handle_onload()">
 
 <div id="labeled_div">
-	<canvas id="main_canvas" width="960" height="440" style="border: 8px solid #c0c0c0;" ></canvas>
+	<canvas id="main_canvas" width="960" height="500" style="border: 8px solid #c0c0c0;" ></canvas>
 </div>
 
 <div>
