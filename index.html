@@ -204,11 +204,11 @@
 			this.extreme_point_radius = 3;
 		}
 
-		// Clamp the cursor to the image dimensions so that clicks and bounding boxes
-		// are always on the image.
+		// Clamp the cursor to the image dimensions so that clicks,
+		// and (resulting bounding boxes) are always within the image
 		set_canvas_cursor_position(x,y) {
-			this.cursorx = clamp(x, 0, this.main_canvas_el.width-1);
-			this.cursory = clamp(y, 0, this.main_canvas_el.height-1);	
+			this.cursorx = clamp(x, 0, this.main_canvas_el.width);
+			this.cursory = clamp(y, 0, this.main_canvas_el.height);	
 		}
 
 		// convert point in canvas pixel coordinates to normalized [0,1]^2 image space coordinates
@@ -612,7 +612,7 @@
 			var image_pt = this.canvas_to_image(new Point2D(this.cursorx, this.cursory));
 			this.inProgressPoints.push(image_pt);
 
-			console.log("KLabeler: Click at x=" + image_pt.x + ", y=" + image_pt.y + " point " + this.inProgressPoints.length);
+			console.log("KLabeler: Click at (" + this.cursorx + ", " + this.cursory + "), image space=(" + image_pt.x + ", " + image_pt.y + "), point " + this.inProgressPoints.length);
 
 			// handle cases where this click completes a new annotation
 			// (e.g., a new bounding box annotation or a new point annotation)
