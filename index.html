@@ -23,7 +23,7 @@
 		* extract bbox data to client (including extreme points)
 		* support images with different size/aspect ratio as the canvas
 		* support multiple images
-		* detect bad extreme points as early as possible
+		* detect bad extreme points as early as possible (before end of box)
 		* regular bbox mode
 		* single point annotation mode
 
@@ -106,7 +106,8 @@
 		// To be valid, the first point should be the leftmost point, the second point
 		// should be the uppermost one, the third point should be the rightmost,
 		// and the fourth point should be bottommost.
-		static valid_extreme_points(pts) {
+		static validate_extreme_points(pts) {
+
 			if (pts[0].x > pts[1].x ||
 				pts[0].x > pts[2].x ||
 				pts[0].x > pts[3].x)
@@ -123,6 +124,7 @@
 				pts[3].y < pts[2].y ||
 				pts[3].y < pts[3].y)
 				return false;
+
 			return true;
 		}
 	}
@@ -140,18 +142,13 @@
 
 	class ImageLabeler {
 
-		static get ANNOTATION_MODE_POINTS() { return 0; }
-		static get ANNOTATION_MODE_REGULAR_BBOX() { return 1; }
-		static get ANNOTATION_MODE_EXTREME_BBOX() { return 2; }
+		static get ANNOTATION_MODE_POINT() { return 0; }
+		static get ANNOTATION_MODE_TWO_POINT_BBOX() { return 1; }
+		static get ANNOTATION_MODE_EXTREME_POINTS_BBOX() { return 2; }
 
 		constructor() {
 
 			this.main_canvas_el = null;
-			this.main_canvas_width = 0;
-			this.main_canvas_height = 0;
-			this.zoom_canvas_el = null;
-			this.zoom_canvas_width = 0;
-			this.zoom_canvas_height = 0;
 
 			this.cursorx = Number.MIN_SAFE_INTEGER;
 			this.cursory = Number.MIN_SAFE_INTEGER;
@@ -162,7 +159,7 @@
 			this.audio_click_sound = null;
 			this.audio_box_done_sound = null;
 
-			this.annotation_mode = ImageLabeler.ANNOTATION_MODE_REGULAR_BBOX;
+			this.annotation_mode = ImageLabeler.ANNOTATION_MODE_EXTREME_POINTS_BBOX;
 			this.annotations = []
 			this.inProgressPoints = [];
 
@@ -171,7 +168,7 @@
 
 			// colors
 			this.color_main_canvas = '#c0c0c0';
-			this.color_zoom_canvas = '#404040';
+			//this.color_zoom_canvas = '#404040';
 			this.color_cursor_lines = 'rgba(0,255,255,0.5)';
 			this.color_in_progress_box_outline = 'rgba(255,255,255,0.75)';
 			this.color_box_outline = 'rgba(255,200,0,0.75)';
@@ -179,34 +176,45 @@
 			this.color_highlight_box_fill = 'rgba(255,200,150,0.2)';
 			this.color_extreme_point_fill = '#ffff00';
 
+			// display settings
+			this.visible_image_region = new BBox2D(0.0, 0.0, 1.0, 1.0);
+			this.letterbox_image = true;         // if false, stretch image
 			this.play_audio = false;
-			this.zoom_factor = 4;
 			this.show_extreme_points = true;
 			this.extreme_point_radius = 3;
-			
 		}
 
 		// Clamp the cursor to the image dimensions so that clicks and bounding boxes
 		// are always on the image.
-		set_cursor_position(x,y) {
-			this.cursorx = Math.min(this.main_canvas_width-1, Math.max(0, x));
-			this.cursory = Math.min(this.main_canvas_height-1, Math.max(0, y));	
+		set_canvas_cursor_position(x,y) {
+			this.cursorx = Math.min(this.main_canvas_el.width-1, Math.max(0, x));
+			this.cursory = Math.min(this.main_canvas_el.height-1, Math.max(0, y));	
+		}
+
+		// convert point in canvas pixel coordinates to normalized [0,1]^2 image space coordinates
+		canvas_to_image(pt) {
+			return;
+		}
+
+		// convert point in normalized [0,1]^2 image space coordinates to canvas pixel coordinates
+		image_to_canvas(pt) {
+			return;
 		}
 
 		is_hovering() {
 			return (this.cursorx >= 0 && this.cursory >= 0);
 		}
 
-		zoom_view_enabled() {
-			return !(this.zoom_canvas_el === undefined);
+		is_annotation_mode_point() {
+			return this.annotation_mode == ImageLabeler.ANNOTATION_MODE_POINT;
 		}
 
-		is_mode_regular_bbox() {
-			return this.annotation_mode == ImageLabeler.ANNOTATION_MODE_REGULAR_BBOX;
+		is_annotation_mode_two_point_bbox() {
+			return this.annotation_mode == ImageLabeler.ANNOTATION_MODE_TWO_POINT_BBOX;
 		}
 
-		is_mode_extreme_bbox() {
-			return this.annotation_mode == ImageLabeler.ANNOTATION_MODE_EXTREME_BBOX;
+		is_annotation_mode_extreme_points_bbox() {
+			return this.annotation_mode == ImageLabeler.ANNOTATION_MODE_EXTREME_POINTS_BBOX;
 		}
 
 		// returns the index of the box that is the "selected box" given the current moue position
@@ -230,6 +238,10 @@
 			return selected;			
 		}
 
+		clear_in_progress_points() {
+			this.inProgressPoints = [];
+		}
+
 		delete_box() {
 			var selected = this.get_selected_object();
 
@@ -241,6 +253,33 @@
 			this.render();
 		}
 
+		clear_boxes() {
+			var num_annotations = this.annotations.length;
+			this.annotations = [];
+			this.clear_in_progress_points();
+			this.render();
+			console.log("Cleared all " + num_annotations + " boxes.");
+		}
+
+		set_extreme_points_viz(status) {
+			this.show_extreme_points = status;
+			this.render();
+		}
+
+		set_play_audio(toggle) {
+			this.play_audio = toggle;
+		}
+
+		set_letterbox(toggle) {
+			this.letterbox_image = toggle;
+			this.render();
+		}
+
+		set_image(url) {
+			// initiate loading of the image to label
+			console.log('KLabeler: Loading image: ' + url);
+			this.source_image.src = url;
+		}
 
 		play_click_audio() {
 
@@ -261,7 +300,6 @@
 				this.audio_box_done_sound.currentTime = 0.0;					
 				this.audio_box_done_sound.play();
 
-
 			} else {
 
 				// stop other sounds
@@ -273,35 +311,7 @@
 			}
 		}
 
-		set_zoom_factor(zoom) {
-			this.zoom_factor = zoom;
-			this.render();
-		}
-
-		set_extreme_points_viz(status) {
-			this.show_extreme_points = status;
-			this.render();
-		}
-
-		set_play_audio(toggle) {
-			this.play_audio = toggle;
-		}
-
-		set_image(url) {
-			// initiate loading of the image to label
-			console.log('KLabeler: Loading image: ' + url);
-			this.source_image.src = url;
-		}
-
-		clear_boxes() {
-			var num_annotations = this.annotations.length;
-			this.inProgressPoints = [];
-			this.annotations = [];
-			this.render();
-			console.log("Cleared all " + num_annotations + " boxes.");
-		}
-
-		draw_inprogress_extreme_bbox(ctx) {
+		draw_inprogress_extreme_points_bbox(ctx) {
 
 			// draw the points we've locked down
 			ctx.beginPath();
@@ -349,7 +359,7 @@
 			}	
 		}
 
-		draw_inprogress_regular_bbox(ctx) {
+		draw_inprogress_two_points_bbox(ctx) {
 
 			var pts = []
 			pts.push(this.inProgressPoints[0]);
@@ -361,24 +371,26 @@
 			ctx.strokeRect(box.bmin.x, box.bmin.y, w, h);
 		}
 
+		/*
+		// this is deprecated since we don't want the zoom view any more.
 		render_zoom_view() {
 
 			var ctx = this.zoom_canvas_el.getContext('2d');
 			ctx.clearRect(0, 0, this.zoom_canvas_el.width, this.zoom_canvas_el.height);
 
 			ctx.fillStyle = this.color_zoom_canvas;
-			ctx.fillRect(0, 0, this.zoom_canvas_width, this.zoom_canvas_height);
+			ctx.fillRect(0, 0, this.zoom_canvas_el.width, this.zoom_canvas_el.height);
 
 			if (this.is_hovering()) {
 
 				// draw zoomed view of image
-				var sw = this.zoom_canvas_width / this.zoom_factor;
-				var sh = this.zoom_canvas_height / this.zoom_factor;
-				var sx = this.source_image.width * this.cursorx / this.main_canvas_width - (sw / 2);
-				var sy = this.source_image.height * this.cursory / this.main_canvas_height - (sh / 2);
+				var sw = this.zoom_canvas_el.width / this.zoom_factor;
+				var sh = this.zoom_canvas_el.height / this.zoom_factor;
+				var sx = this.source_image.width * this.cursorx / this.main_canvas_el.width - (sw / 2);
+				var sy = this.source_image.height * this.cursory / this.main_canvas_el.height - (sh / 2);
 
 				ctx.imageSmoothingEnabled = false;
-				ctx.drawImage(this.source_image, sx, sy, sw, sh, 0, 0, this.zoom_canvas_width, this.zoom_canvas_height);
+				ctx.drawImage(this.source_image, sx, sy, sw, sh, 0, 0, this.zoom_canvas_el.width, this.zoom_canvas_el.height);
 
 				// draw zoomed in cursor 
 				ctx.lineWidth = this.zoom_factor;
@@ -390,15 +402,65 @@
 				var offsety = ctx.lineWidth / 2;
 
 				ctx.beginPath();
-				ctx.moveTo(this.zoom_canvas_width/2 - offsetx, 0);
-				ctx.lineTo(this.zoom_canvas_width/2 - offsetx, this.zoom_canvas_height);
+				ctx.moveTo(this.zoom_canvas_el.width/2 - offsetx, 0);
+				ctx.lineTo(this.zoom_canvas_el.width/2 - offsetx, this.zoom_canvas_el.height);
 				ctx.stroke();
 
 				ctx.beginPath();
-				ctx.moveTo(0, this.zoom_canvas_height/2 - offsety);
-				ctx.lineTo(this.zoom_canvas_width, this.zoom_canvas_height/2  - offsety);
+				ctx.moveTo(0, this.zoom_canvas_el.height/2 - offsety);
+				ctx.lineTo(this.zoom_canvas_el.width, this.zoom_canvas_el.height/2  - offsety);
 				ctx.stroke();
 			}
+		}
+		*/
+
+		render_image() {
+
+			var ctx = this.main_canvas_el.getContext('2d');
+
+			// visible region of the image in the image's pixel space
+			var visible_xmin = this.visible_image_region.bmin.x * this.source_image.width;
+			var visible_ymin = this.visible_image_region.bmin.y * this.source_image.height;
+			var visible_xmax = this.visible_image_region.bmax.x * this.source_image.width;
+			var visible_ymax = this.visible_image_region.bmax.y * this.source_image.height;
+
+			var visible_width  = visible_xmax - visible_xmin;
+			var visible_height = visible_ymax - visible_ymin;
+
+			if (this.letterbox_image) {
+
+				var aspect_canvas = this.main_canvas_el.height / this.main_canvas_el.width;
+				var aspect_visible  = visible_height / visible_width;
+
+				if (aspect_canvas >= aspect_visible) {
+					// canvas is taller than the visible part of the image, so letterbox the top and bottom
+					var display_width = this.main_canvas_el.width;
+					var display_height = this.main_canvas_el.width * aspect_visible;
+					var startx = 0; 
+					var starty = (this.main_canvas_el.height - display_height) / 2;
+
+					ctx.drawImage(this.source_image,
+						visible_xmin, visible_ymin, visible_width, visible_height,
+						startx, starty, display_width, display_height);
+
+				} else {
+					// canvas is wider than the visible part of the image, so letterbox the left and right
+					var display_height = this.main_canvas_el.height;
+					var display_width = this.main_canvas_el.height / aspect_visible;
+					var startx = (this.main_canvas_el.width - display_width) / 2;
+					var starty = 0; 
+
+					ctx.drawImage(this.source_image,
+						visible_xmin, visible_ymin, visible_width, visible_height,
+						startx, starty, display_width, display_height);
+				}
+			} else {
+				// scale the image to fill the entire canvas
+				ctx.drawImage(this.source_image,
+					visible_xmin, visible_ymin, visible_width, visible_height,
+					0, 0, this.main_canvas_el.width, this.main_canvas_el.height);
+			}
+
 		}
 
 		render() {
@@ -410,13 +472,13 @@
 			// draw the image to label
 
 			if (this.image_loaded) {
-				ctx.drawImage(this.source_image, 0, 0, this.main_canvas_width, this.main_canvas_height);
+				this.render_image();
 			} else {
 				ctx.fillStyle = this.color_main_canvas;
-				ctx.fillRect(0, 0, this.main_canvas_width, this.main_canvas_height);
+				ctx.fillRect(0, 0, this.main_canvas_el.width, this.main_canvas_el.height);
 			}
 
-			// draw cursor lines
+			// draw guidelines that move with the mouse cursor
 
 			if (this.is_hovering()) {
 				ctx.lineWidth = 1;
@@ -424,12 +486,12 @@
 
 				ctx.beginPath();
 				ctx.moveTo(this.cursorx, 0);
-				ctx.lineTo(this.cursorx, this.main_canvas_height);
+				ctx.lineTo(this.cursorx, this.main_canvas_el.height);
 				ctx.stroke();
 
 				ctx.beginPath();
 				ctx.moveTo(0, this.cursory);
-				ctx.lineTo(this.main_canvas_width, this.cursory);
+				ctx.lineTo(this.main_canvas_el.width, this.cursory);
 				ctx.stroke();
 			}
 
@@ -477,33 +539,29 @@
 				ctx.lineWidth = 1;
 				ctx.strokeStyle = this.color_in_progress_box_outline; 
 
-				if (this.is_mode_extreme_bbox()) {
-					this.draw_inprogress_extreme_bbox(ctx);
-				} else if (this.is_mode_regular_bbox()) {
-					this.draw_inprogress_regular_bbox(ctx);
+				if (this.is_annotation_mode_extreme_points_bbox()) {
+					this.draw_inprogress_extreme_points_bbox(ctx);
+				} else if (this.is_annotation_mode_two_point_bbox()) {
+					this.draw_inprogress_two_point_bbox(ctx);
 				}
 			}
 
-			// render the "zoomed view"
-
-			if (this.zoom_view_enabled()) {
-				this.render_zoom_view();
-			}
 		}
 
 		handle_image_load = event => {
 			console.log("KLabeler: Image loaded.");
 			this.image_loaded = true;
+			this.visible_image_region = new BBox2D(0.0, 0.0, 1.0, 1.0);  // entire image is visible (zoomed out)
 			this.render();
 		}
 
 		handle_canvas_mousemove = event => {
-			this.set_cursor_position(event.offsetX, event.offsetY);
+			this.set_canvas_cursor_position(event.offsetX, event.offsetY);
 			this.render();
 		}
 
 		handle_canvas_mouseover = event => {
-			this.set_cursor_position(event.offsetX, event.offsetY);		
+			this.set_canvas_cursor_position(event.offsetX, event.offsetY);		
 			this.render();
 		}
 
@@ -537,19 +595,34 @@
 
 		handle_canvas_click = event => {
 
-			this.set_cursor_position(event.offsetX, event.offsetY);
+			this.set_canvas_cursor_position(event.offsetX, event.offsetY);
 
 			var p = new Point2D(this.cursorx, this.cursory);
 			this.inProgressPoints.push(p);
 
 			console.log("KLabeler: Click at x=" + p.x + ", y=" + p.y + " point " + this.inProgressPoints.length);
 
-			if (this.is_mode_extreme_bbox() && this.inProgressPoints.length == 4) {
+			// if the labeler is configured to be in extreme points mode, after each click determine whether we
+			// have a alid set of extreme points. 
+			/*
+			if (this.is_annotation_mode_extreme_points_bbox() && this.inProgressPoints.length < 4) {
+				if (!BBox2D.validate_extreme_points(this.inProgressPoints)) {
+					console.log("KLabeler: Points clicked are not valid extreme points. Discarding box.");
+					this.clear_in_progress_points();
+					this.render();
+					return;
+				}
+			}
+			*/
 
-				// validate box.  Discard box if this set of for extreme points is not a valid set of extreme points
-				if (!BBox2D.valid_extreme_points(this.inProgressPoints)) {
-					alert("Points clicked are not valid extreme points. Discarding box.");
-					this.inProgressPoints = [];
+			// handle cases where this click completes a new annotation
+			// (e.g., a new bounding box annotation or a new point annotation)
+			if (this.is_annotation_mode_extreme_points_bbox() && this.inProgressPoints.length == 4) {
+
+				// discard box if this set of four extreme points is not a valid set of extreme points
+				if (!BBox2D.validate_extreme_points(this.inProgressPoints)) {
+					console.log("KLabeler: Points clicked are not valid extreme points. Discarding box.");
+					this.clear_in_progress_points();
 					this.render();
 					return;
 				}
@@ -562,15 +635,15 @@
 				console.log("KLabeler: New box: x=[" + newBBox.bmin.x + ", " + newBBox.bmax.y + "], y=[" + newBBox.bmin.y + ", " + newBBox.bmax.y + "]");
 				console.log("KLabeler: There are now " + this.annotations.length + " box(es).");
 
-				this.inProgressPoints = [];
+				this.clear_in_progress_points();
 
-			} else if (this.is_mode_regular_bbox() && this.inProgressPoints.length == 2) {
+			} else if (this.is_annotation_mode_two_point_bbox() && this.inProgressPoints.length == 2) {
 
-				// validate box.  Discard any empty boxes.
+				// validate box by discarding empty boxes.
 				if (this.inProgressPoints[0].x == this.inProgressPoints[1].x &&
 					this.inProgressPoints[0].y == this.inProgressPoints[1].y) {
 					alert("Empty bbox. Discarding box.");
-					this.inProgressPoints = [];
+					this.clear_in_progress_points();
 					this.render();
 					return;
 				}
@@ -582,7 +655,12 @@
 				console.log("KLabeler: New box: x=[" + newBBox.bmin.x + ", " + newBBox.bmax.y + "], y=[" + newBBox.bmin.y + ", " + newBBox.bmax.y + "]");
 				console.log("KLabeler: There are now " + this.annotations.length + " box(es).");
 
-				this.inProgressPoints = [];
+				this.clear_in_progress_points();
+
+			} else if (this.is_annotation_mode_two_point_bbox()) {
+
+				console.log("KLabeler: Annotation of points is not supported yet!");
+				this.clear_in_progress_points();
 			}
 
 			this.render();
@@ -591,46 +669,39 @@
 				this.play_click_audio();
 		}
 
-		init(main_canvas_el, zoom_canvas_id) {
+		init(main_canvas_el) {
 
 			console.log("Klabeler: initializing.");
 
 			this.main_canvas_el = main_canvas_el;
-			this.main_canvas_width = this.main_canvas_el.width;
-			this.main_canvas_height = this.main_canvas_el.height;
 			this.main_canvas_el.addEventListener("mousemove", this.handle_canvas_mousemove, false);
 			this.main_canvas_el.addEventListener("click", this.handle_canvas_click, false);
 			this.main_canvas_el.addEventListener("mouseover", this.handle_canvas_mouseover, false);
 			this.main_canvas_el.addEventListener("mouseout", this.handle_canvas_mouseout, false);
-			//this.main_canvas_el.addEventListener("keydown", this.handle_canvas_keydown, false);
-			//this.main_canvas_el.addEventListener("keyup", this.handle_canvas_keyup, false);
-
-			this.zoom_canvas_el = zoom_canvas_id;
-
-			if (this.zoom_view_enabled()) {
-				this.zoom_canvas_width = this.zoom_canvas_el.width;
-				this.zoom_canvas_height = this.zoom_canvas_el.height;
-			}
 
 			this.source_image.onload = this.handle_image_load;
 
 			this.audio_click_sound = new Audio("media/click_sound2.mp3");
 			this.audio_box_done_sound = new Audio("media/click_sound3.mp3");
-
 		}
 	}
 
+
+	////////////////////////////////////////////////////////////////////////////////////
+	// begin top-level code
+	////////////////////////////////////////////////////////////////////////////////////
+
 	var main_canvas_id = 'main_canvas';
-	var zoom_canvas_id = 'zoom_canvas';
+	//var zoom_canvas_id = 'zoom_canvas';
 	var labeler = new ImageLabeler;
 
 	function handle_onload() {
 
 		var main_canvas = document.getElementById(main_canvas_id);
-		var zoom_canvas = document.getElementById(zoom_canvas_id);
-		labeler.init(main_canvas, zoom_canvas);
+		//var zoom_canvas = document.getElementById(zoom_canvas_id);
+		labeler.init(main_canvas);
 		labeler.set_image("media/testimage.jpg");
-		labeler.set_zoom_factor(8);
+		//labeler.set_zoom_factor(8);
 
 		var button = document.getElementById("toggle_pt_viz_button");
 		button.toggle_status = true;
@@ -640,10 +711,15 @@
 		button.toggle_status = true;
 		labeler.set_play_audio(button.toggle_status);
 
+		button = document.getElementById("toggle_letterbox_button");
+		button.toggle_status = true;
+		labeler.set_letterbox(button.toggle_status);
+
 		// HACK(kayvonf): intercept all key events and send them to the labeler
 		// There's likely a much better way to do this.
-		// The problem is that the labeler canvas needs to have focus in order to accept key events.
-		// I'm not certain I want to do that right now.
+		// The problem is that the Klabeler canvas DOM element needs to have keyboard focus in order to accept key events.
+		// I'm not certain I want to do that right now, since other elements of the HTML page might want keyboard focus,
+		// so for now I'm going to send all key events on the page to the KLabeler cnavas.
 		window.addEventListener("keydown", function(e) {
 			e.preventDefault();
 			labeler.handle_keydown(e);
@@ -653,15 +729,13 @@
 			e.preventDefault();
 			labeler.handle_keyup(e);
 		});
-
-
 	}
 
 	function clear_boxes() {
 		labeler.clear_boxes();
 	}
 
-	function toggle_extreme_points() {
+	function toggle_extreme_points_display() {
 		var button = document.getElementById("toggle_pt_viz_button");
 		var new_status = !button.toggle_status;
 		labeler.set_extreme_points_viz(new_status);
@@ -687,19 +761,33 @@
 		}		
 	}
 
+	function toggle_letterbox() {
+		var button = document.getElementById("toggle_letterbox_button");
+		var new_status = !button.toggle_status;	
+		labeler.set_letterbox(new_status);
+		button.toggle_status = new_status;
+
+		if (new_status == false) {
+			button.innerHTML = 'Use Letterbox View';
+		} else {
+			button.innerHTML = 'Use Scaled View';
+		}
+	}
+
 </script>
 </head>
 <body onload="handle_onload()">
 
 <div id="labeled_div">
-	<canvas id="main_canvas" width="960" height="540" style="border: 8px solid #c0c0c0;" ></canvas>
-	<canvas id="zoom_canvas" width="270" height="270" style="border: 8px solid #c0c0c0;"></canvas>
+	<canvas id="main_canvas" width="960" height="440" style="border: 8px solid #c0c0c0;" ></canvas>
+	<!-- <canvas id="zoom_canvas" width="270" height="270" style="border: 8px solid #c0c0c0;"></canvas> -->
 </div>
 
 <div>
 	<button id="clear_button" type="button" onclick="clear_boxes()">Clear Boxes</button>
-	<button id="toggle_pt_viz_button" type="button" onclick="toggle_extreme_points()">Hide Extreme Points</button>
+	<button id="toggle_pt_viz_button" type="button" onclick="toggle_extreme_points_display()">Hide Extreme Points</button>
 	<button id="toggle_sound_button" type="button" onclick="toggle_sound()">Turn Sound On</button>
+	<button id="toggle_letterbox_button" type="button" onclick="toggle_letterbox()">Scale Image</button>
 </div>
 
 <p>Click four times to draw a box.  (Use the <a href="https://arxiv.org/abs/1708.02750">extreme clicking</a> technique: leftmost, topmost, rightmost, bottommost)</p>
