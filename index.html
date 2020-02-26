@@ -5,8 +5,8 @@
 <style>
 	body {
 		font-family: Helvetica, Arial, sans-seris;
-		font-size: 11pt;
-		color: #d0d0d0;
+		font-size: 10pt;
+		color: #c0c0c0;
 		background: #404040;
 	}
 
@@ -201,7 +201,7 @@
 			this.shiftKeyDown = false;
 
 			// this structure holds the annotation data
-			this.current_frame = 0;
+			this.current_frame_index = 0;
 			this.frames = [];
 
 			// annotation state
@@ -239,7 +239,7 @@
 		}
 
 		get_current_frame() {
-			return this.frames[this.current_frame];
+			return this.frames[this.current_frame_index];
 		}
 
 		// convert point in canvas pixel coordinates to normalized [0,1]^2 image space coordinates
@@ -481,6 +481,7 @@
 
 			var cur_frame = this.get_current_frame();
 
+
 			if (cur_frame.image_load_complete) {
 
 				var visible_box = this.visible_image_region.scale(cur_frame.source_image.width, cur_frame.source_image.height);
@@ -588,10 +589,11 @@
 
 		}
 
-		handle_image_load = event => {
-			console.log("KLabeler: Image loaded.");
+		//handle_image_load = event => {
+		handle_image_load(image_index) {
+			console.log("KLabeler: Image " + image_index + " loaded.");
 
-			this.frames[0].image_load_complete = true;
+			this.frames[image_index].image_load_complete = true;
 			this.render();
 		}
 
@@ -739,23 +741,46 @@
 			this.render();
 		}
 
+		get_current_frame_num() {
+			return this.current_frame_index;
+		}
+
+		get_num_frames() {
+			return this.frames.length;
+		}
+
+		set_current_frame_num(frame_num) {
+			this.current_frame_index = frame_num;
+			this.clear_in_progress_points();
+			this.render();
+			console.log("KLabler: set current frame num to " + this.current_frame_index);
+		}
+
+		make_image_load_handler(x) {
+			return event => {
+				this.handle_image_load(x);
+			}
+		}
+
 		load_image_stack(image_dataset) {
-			console.log('KLabler: loading set of ' + image_dataset.length + ' images');
+			console.log('KLabeler: loading set of ' + image_dataset.length + ' images');
 	
 			this.frames = [];
+			var image_index = 0;
 			for (var img of image_dataset) {
 				var frame = new Frame(img);
 
 				// kick off the image load
 				frame.image_load_started = true;
-				frame.source_image.onload = this.handle_image_load;
+				frame.source_image.onload = this.make_image_load_handler(image_index);
 				frame.source_image.src = frame.data.source_url;
 				this.frames.push(frame);
+				image_index++;
 			}
 
 			// FIXME(kayvonf): extract to helper function
 			// reset the viewer sequence
-			this.current_frame = 0;
+			this.current_frame_index = 0;
 			this.clear_in_progress_points();
 			this.visible_image_region = new BBox2D(0.0, 0.0, 1.0, 1.0);
 		}
@@ -778,7 +803,7 @@
 			
 			// FIXME(kayvonf): extract to helper function
 			// reset the viewer sequence
-			this.current_frame = 0;
+			this.current_frame_index = 0;
 			this.clear_in_progress_points();
 			this.visible_image_region = new BBox2D(0.0, 0.0, 1.0, 1.0);
 
@@ -798,6 +823,7 @@
 
 	var main_canvas_id = 'main_canvas';
 	var labeler = new ImageLabeler;
+	var current_frame = 0;
 
 	function handle_onload() {
 
@@ -820,6 +846,7 @@
 		images.push(data);
 		
 		labeler.load_image_stack(images);
+		current_frame = labeler.get_current_frame_num();
 
 		labeler.set_annotation_mode(ImageLabeler.ANNOTATION_MODE_EXTREME_POINTS_BBOX);
 		
@@ -905,6 +932,27 @@
 		}
 	}
 
+	function handle_prev_frame() {
+		var old_frame = current_frame;
+		current_frame = current_frame -1;
+		if (current_frame < 0)
+			current_frame = 0;
+
+		if (old_frame != current_frame)
+			labeler.set_current_frame_num(current_frame);
+	}
+
+	function handle_next_frame() {
+		var old_frame = current_frame;
+		current_frame = current_frame + 1;
+		if (current_frame >= labeler.get_num_frames())
+			current_frame = labeler.get_num_frames()-1;
+
+		if (old_frame != current_frame)
+			labeler.set_current_frame_num(current_frame);
+	}
+
+
 </script>
 </head>
 <body onload="handle_onload()">
@@ -915,21 +963,41 @@
 </div>
 
 <div>
-	Annotation mode:
+	Mode:
 	<select id="select_annotation_mode" onchange="handle_mode_change()">
        <option value="box_extreme_points">Box (via extreme points)</option>
        <option value="box_two_points">Box (via two corner clicks)</option>
        <option value="point">Point</option>
     </select>
-    <button id="clear_button" type="button" onclick="clear_boxes()">Clear Annotations</button>
+    <button id="clear_button" type="button" onclick="clear_boxes()">Clear Annotations</button> --- 
+
 	<button id="toggle_pt_viz_button" type="button" onclick="toggle_extreme_points_display()">Hide Extreme Points</button>
 	<button id="toggle_sound_button" type="button" onclick="toggle_sound()">Turn Sound On</button>
-	<button id="toggle_letterbox_button" type="button" onclick="toggle_letterbox()">Scale Image</button>
+	<button id="toggle_letterbox_button" type="button" onclick="toggle_letterbox()">Use Scaled View</button> ---
+	<button id="prev_frame_button" type="button" onclick="handle_prev_frame()">Prev</button>
+	<button id="next_frame_button" type="button" onclick="handle_next_frame()">Next</button>
 
 </div>
 
-<p>Click four times to draw a box.  (Use the <a href="https://arxiv.org/abs/1708.02750">extreme clicking</a> technique: leftmost, topmost, rightmost, bottommost)</p>
-<p>Hover over a box to select it. Press DEL to delete the selected box. (Selection picks the smallest area box containing the cursor.)</p>
+<p style="width: 960px; border-top: 1px solid #606060; padding-top: 10px;">Annotation Help:</p>
+<table cellpadding="0" cellspacing="0" border="0">
+<tr>
+	<td width="175">Extreme points box mode:</td>
+	<td>Click four times to draw a box.  (Use the <a href="https://arxiv.org/abs/1708.02750">extreme clicking</a> technique: leftmost, topmost, rightmost, bottommost)</td>
+</tr>
+<tr>
+	<td>Two-point box mode:</td>
+	<td>Two clicks to define the corners of the bounding box.</td>
+</tr> 
+<tr>
+	<td>Point mode:</td>
+	<td>Single click to define a point</td>
+</tr>
+</table>
+
+<p>
+Hover over boxes/points to select them. Press DEL to delete the selected item. (Selection picks the smallest area box containing the cursor.)
+</p>
 
 </body>
 </html>
