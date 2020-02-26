@@ -589,7 +589,6 @@
 
 		}
 
-		//handle_image_load = event => {
 		handle_image_load(image_index) {
 			console.log("KLabeler: Image " + image_index + " loaded.");
 
@@ -616,21 +615,27 @@
 		handle_keydown = event => {
 			//console.log("KeyDown: " + event.keyCode);
 
-			if (event.keyCode == 32) {
+			if (event.keyCode == 32) {          // space
 				this.spaceKeyDown = true;
-			} else if (event.keyCode == 16) {
+			} else if (event.keyCode == 16) {   // shift
 				this.shiftKeyDown = true;
+			} else if (event.keyCode == 37) {   // left arrow
+				if (this.current_frame_index > 0)
+					this.set_current_frame_num(this.current_frame_index-1);
+			} else if (event.keyCode == 39) {   // right arrow
+				if (this.current_frame_index < this.frames.length-1)
+					this.set_current_frame_num(this.current_frame_index+1);
 			}
 		}
 
 		handle_keyup = event => {
 			//console.log("KeyUp: " + event.keyCode);
 
-			if (event.keyCode == 32) {
-				this.spaceKeyDown = false;
-			} else if (event.keyCode == 16) {
+			if (event.keyCode == 32) {          // space
+				this.spaceKeyDown = false; 
+			} else if (event.keyCode == 16) {   // shift
 				this.shiftKeyDown = false;
-			} else if (event.keyCode == 8) {
+			} else if (event.keyCode == 8) {    // delete
 				this.delete_box();
 			}
 		}
@@ -831,21 +836,33 @@
 		labeler.init(main_canvas);
 
 		// set the data source
-		var images = [];
+		var filenames = ["media/00001227.jpg",
+				 		 "media/00001228.jpg",
+						 "media/00001229.jpg",
+				 		 "media/00001230.jpg",
+						 "media/00001231.jpg",
+				 		 "media/00001232.jpg",
+						 "media/00001233.jpg",
+				 		 "media/00001234.jpg",
+						 "media/00001235.jpg",
+						 "media/00001236.jpg",
+						 "media/00001237.jpg",
+						 "media/00001238.jpg",
+						 "media/00001239.jpg",
+						 "media/00001240.jpg",
+						 "media/00001241.jpg",
+						 "media/00001242.jpg",
+						 ];
 
-		var data = new ImageData;
-		data.source_url = "media/testimage_0.jpg";
-		images.push(data);
+		var image_data = [];
 
-		data = new ImageData;
-		data.source_url = "media/testimage_1.jpg";
-		images.push(data);
-
-		data = new ImageData;
-		data.source_url = "media/testimage_2.jpg";
-		images.push(data);
+		for (var i=0; i<filenames.length; i++) {
+			var data = new ImageData;
+			data.source_url = filenames[i];
+			image_data.push(data);
+		}
 		
-		labeler.load_image_stack(images);
+		labeler.load_image_stack(image_data);
 		current_frame = labeler.get_current_frame_num();
 
 		labeler.set_annotation_mode(ImageLabeler.ANNOTATION_MODE_EXTREME_POINTS_BBOX);
@@ -973,10 +990,11 @@
 
 	<button id="toggle_pt_viz_button" type="button" onclick="toggle_extreme_points_display()">Hide Extreme Points</button>
 	<button id="toggle_sound_button" type="button" onclick="toggle_sound()">Turn Sound On</button>
-	<button id="toggle_letterbox_button" type="button" onclick="toggle_letterbox()">Use Scaled View</button> ---
+	<button id="toggle_letterbox_button" type="button" onclick="toggle_letterbox()">Use Scaled View</button>
+	<!--
 	<button id="prev_frame_button" type="button" onclick="handle_prev_frame()">Prev</button>
 	<button id="next_frame_button" type="button" onclick="handle_next_frame()">Next</button>
-
+	-->
 </div>
 
 <p style="width: 960px; border-top: 1px solid #606060; padding-top: 10px;">Annotation Help:</p>
@@ -996,7 +1014,8 @@
 </table>
 
 <p>
-Hover over boxes/points to select them. Press DEL to delete the selected item. (Selection picks the smallest area box containing the cursor.)
+<div>Hover over boxes/points to select them. Press DEL to delete the selected item. (Selection picks the smallest area box containing the cursor.)</div>
+<div>Left/right arrow keys move from frame to frame in the current batch of frames.</div>
 </p>
 
 </body>
