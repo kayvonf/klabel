@@ -19,9 +19,10 @@
 
 	/*
 		TODO list:
-		* single point annotation mode
 		* support multiple images
-		* extract bbox data to client (including extreme points)
+		* UI for zooming (and unzooming)
+		* improve box/point selection mechanisms
+		* extract box data to client (including extreme points)
 		* detect bad extreme points as early as possible (before end of box)
 
 		LICENSES:
@@ -150,14 +151,36 @@
 	}
 
 	// An Annotation stores the bounding box of the object and the extreme
-	// points used to create the bounding box.  We want to keep the extreme
-	// points provided by the labeler since they contain additional information
-	// about the object's silhouette that would be lost if we just
-	// store its bounding box.  
+	// points used to create the bounding box (if this annotation was created from
+	// extreme clicking).  We want to keep the extreme points provided by the labeler
+	// since they contain additional information about the object's silhouette that
+	// would be lost if we just store its bounding box.
+	//
+	// HACK(kayvonf): the type of annotation is derived from the length of the extreme_points array.
+	// if the number of points is zero, then its a regular two-point bbox.  If the number of points
+	// is one, then the annotation represents a point annotation.  If the number of points is four,
+	// then the annotation represents a bbox created via extreme clicking, so we want to hold onto 
+	// all the points.  
 	class Annotation {
 		constructor(bbox, extreme_points) {
 			this.bbox = bbox;
 			this.extreme_points = extreme_points;
+		}
+	}
+
+	class ImageData {
+		constructor() {
+			this.source_url = "";
+			this.annotations = [];
+		}
+	}
+
+	class Frame {
+		constructor(image_data) {
+			this.data = image_data;
+			this.image_load_started = false;
+			this.image_load_complete = false;
+			this.source_image = new Image;
 		}
 	}
 
@@ -174,18 +197,20 @@
 			this.cursorx = Number.MIN_SAFE_INTEGER;
 			this.cursory = Number.MIN_SAFE_INTEGER;
 
-			this.image_loaded = false;
-			this.source_image = new Image;
-
-			this.audio_click_sound = null;
-			this.audio_box_done_sound = null;
-
-			this.annotation_mode = ImageLabeler.ANNOTATION_MODE_EXTREME_POINTS_BBOX;
-			this.annotations = []
-			this.inProgressPoints = [];
-
 			this.spaceKeyDown = false;
 			this.shiftKeyDown = false;
+
+			// this structure holds the annotation data
+			this.current_frame = 0;
+			this.frames = [];
+
+			// annotation state
+			this.annotation_mode = ImageLabeler.ANNOTATION_MODE_EXTREME_POINTS_BBOX;
+			this.inProgressPoints = [];
+
+			// audio
+			this.audio_click_sound = null;
+			this.audio_box_done_sound = null;
 
 			// colors
 			this.color_main_canvas = '#202020';
@@ -200,7 +225,7 @@
 
 			// display settings
 			this.visible_image_region = new BBox2D(0.0, 0.0, 1.0, 1.0);
-			this.letterbox_image = true;         // if false, stretch image
+			this.letterbox_image = true;  // if false, stretch image to fill canvas
 			this.play_audio = false;
 			this.show_extreme_points = true;
 			this.extreme_point_radius = 3;
@@ -213,10 +238,16 @@
 			this.cursory = clamp(y, 0, this.main_canvas_el.height);	
 		}
 
+		get_current_frame() {
+			return this.frames[this.current_frame];
+		}
+
 		// convert point in canvas pixel coordinates to normalized [0,1]^2 image space coordinates
 		canvas_to_image(pt) {
 
-			var visible_box = this.visible_image_region.scale(this.source_image.width, this.source_image.height);
+			var cur_frame = this.get_current_frame();
+
+			var visible_box = this.visible_image_region.scale(cur_frame.source_image.width, cur_frame.source_image.height);
 			var display_box = this.compute_display_box();
 
 			// pixel space coordinates
@@ -224,8 +255,8 @@
 			var image_pixel_y = visible_box.bmin.y + visible_box.height * (pt.y - display_box.bmin.y) / display_box.height;
 
 			// normalized image space coordinates 
-			var norm_x = clamp(image_pixel_x / this.source_image.width, 0.0, 1.0);
-			var norm_y = clamp(image_pixel_y / this.source_image.height, 0.0, 1.0);
+			var norm_x = clamp(image_pixel_x / cur_frame.source_image.width, 0.0, 1.0);
+			var norm_y = clamp(image_pixel_y / cur_frame.source_image.height, 0.0, 1.0);
 
 			return new Point2D(norm_x, norm_y);
 		}
@@ -233,12 +264,14 @@
 		// convert point in normalized [0,1]^2 image space coordinates to canvas pixel coordinates
 		image_to_canvas(pt) {
 			
-			var visible_box = this.visible_image_region.scale(this.source_image.width, this.source_image.height);
+			var cur_frame = this.get_current_frame();
+
+			var visible_box = this.visible_image_region.scale(cur_frame.source_image.width, cur_frame.source_image.height);
 			var display_box = this.compute_display_box();
 
 			// pixel space coordinates of pt
-			var image_pixel_x = pt.x * this.source_image.width;
-			var image_pixel_y = pt.y * this.source_image.height;
+			var image_pixel_x = pt.x * cur_frame.source_image.width;
+			var image_pixel_y = pt.y * cur_frame.source_image.height;
 
 			// convert into normalized coordinates in the visible region
 			var visible_region_x = (image_pixel_x - visible_box.bmin.x) / visible_box.width;
@@ -266,7 +299,8 @@
 			return this.annotation_mode == ImageLabeler.ANNOTATION_MODE_EXTREME_POINTS_BBOX;
 		}
 
-		// returns the index of the box that is the "selected box" given the current moue position
+		// returns the index of the annotation that is the "selected annotation" given
+		// the current mouse position
 		get_selected_object() {
 
 			var selected = -1;
@@ -276,13 +310,15 @@
 
 			var image_cursor_pt = this.canvas_to_image(new Point2D(this.cursorx, this.cursory));
 
+			var cur_frame = this.get_current_frame();
+
 			// select the smallest box that the cursor is in
 			var smallest_area = Number.MAX_VALUE;
-			for (var i=0; i<this.annotations.length; i++) {
-				if (this.annotations[i].bbox.inside(image_cursor_pt.x, image_cursor_pt.y) &&
-					this.annotations[i].bbox.area < smallest_area) {
+			for (var i=0; i<cur_frame.data.annotations.length; i++) {
+				if (cur_frame.data.annotations[i].bbox.inside(image_cursor_pt.x, image_cursor_pt.y) &&
+					cur_frame.data.annotations[i].bbox.area < smallest_area) {
 					selected = i;
-					smallest_area = this.annotations[i].bbox.area;
+					smallest_area = cur_frame.data.annotations[i].bbox.area;
 				}
 			}
 
@@ -294,47 +330,16 @@
 		}
 
 		delete_box() {
+
+			var cur_frame = this.get_current_frame();
 			var selected = this.get_selected_object();
 
 			if (selected != -1) {
-				this.annotations.splice(selected, 1);
+				cur_frame.data.annotations.splice(selected, 1);
 				console.log("KLabeler: Deleted box " + selected);
 			}
 
 			this.render();
-		}
-
-		clear_boxes() {
-			var num_annotations = this.annotations.length;
-			this.annotations = [];
-			this.clear_in_progress_points();
-			this.render();
-			console.log("Cleared all " + num_annotations + " boxes.");
-		}
-
-		set_annotation_mode(mode) {
-			this.annotation_mode = mode;
-			this.render();
-		}
-
-		set_extreme_points_viz(status) {
-			this.show_extreme_points = status;
-			this.render();
-		}
-
-		set_play_audio(toggle) {
-			this.play_audio = toggle;
-		}
-
-		set_letterbox(toggle) {
-			this.letterbox_image = toggle;
-			this.render();
-		}
-
-		set_image(url) {
-			// initiate loading of the image to label
-			console.log('KLabeler: Loading image: ' + url);
-			this.source_image.src = url;
 		}
 
 		play_click_audio() {
@@ -372,7 +377,8 @@
 
 			// visible region of the image in the image's pixel space
 
-			var visible_box = this.visible_image_region.scale(this.source_image.width, this.source_image.height);
+			var cur_frame = this.get_current_frame();
+			var visible_box = this.visible_image_region.scale(cur_frame.source_image.width, cur_frame.source_image.height);
 
 			// by default: scale the image to fill the entire canvas
 			var display_startx = 0;
@@ -473,12 +479,14 @@
 
 			// draw the image to label
 
-			if (this.image_loaded) {
+			var cur_frame = this.get_current_frame();
 
-				var visible_box = this.visible_image_region.scale(this.source_image.width, this.source_image.height);
+			if (cur_frame.image_load_complete) {
+
+				var visible_box = this.visible_image_region.scale(cur_frame.source_image.width, cur_frame.source_image.height);
 				var display_box = this.compute_display_box();
 
-				ctx.drawImage(this.source_image,
+				ctx.drawImage(cur_frame.source_image,
 					visible_box.bmin.x, visible_box.bmin.y, visible_box.width, visible_box.height,
 					display_box.bmin.x, display_box.bmin.y, display_box.width, display_box.height);
 			}
@@ -504,9 +512,9 @@
 			
 			var selected = this.get_selected_object();
 
-			for (var obj_id=0; obj_id<this.annotations.length; obj_id++) {
+			for (var obj_id=0; obj_id<cur_frame.data.annotations.length; obj_id++) {
 
-				var obj = this.annotations[obj_id];
+				var obj = cur_frame.data.annotations[obj_id];
 				var selectedObj = (selected == obj_id);
 
 				// transform to canvas space
@@ -546,7 +554,7 @@
 					ctx.strokeRect(canvas_min.x, canvas_min.y, canvas_width, canvas_height);
 
 					// draw dots indicating all the extreme points (if there are extreme points)
-					if (this.show_extreme_points && obj.extreme_points !== undefined)  {
+					if (this.show_extreme_points && obj.extreme_points.length == 4)  {
 						var full_circle_angle = 2 * Math.PI;
 						ctx.fillStyle = this.color_extreme_point_fill;
 						for (var i=0; i<4; i++) {
@@ -582,8 +590,8 @@
 
 		handle_image_load = event => {
 			console.log("KLabeler: Image loaded.");
-			this.image_loaded = true;
-			this.visible_image_region = new BBox2D(0.0, 0.0, 1.0, 1.0);  // entire image is visible (zoomed out)
+
+			this.frames[0].image_load_complete = true;
 			this.render();
 		}
 
@@ -627,6 +635,12 @@
 
 		handle_canvas_click = event => {
 
+			var cur_frame = this.get_current_frame();
+
+			// ignore mouse clicks if the image hasn't loaded yet
+			if (!cur_frame.image_load_complete)
+				return;
+
 			this.set_canvas_cursor_position(event.offsetX, event.offsetY);
 
 			var image_pt = this.canvas_to_image(new Point2D(this.cursorx, this.cursory));
@@ -649,7 +663,7 @@
 				var newBBox = BBox2D.extreme_points_to_bbox(this.inProgressPoints);
 				var newAnnotation = new Annotation(newBBox, this.inProgressPoints);
 
-				this.annotations.push(newAnnotation);
+				cur_frame.data.annotations.push(newAnnotation);
 
 				console.log("KLabeler: New box: x=[" + newBBox.bmin.x + ", " + newBBox.bmax.x + "], y=[" + newBBox.bmin.y + ", " + newBBox.bmax.y + "]");
 
@@ -667,8 +681,8 @@
 				}
 
 				var newBBox = BBox2D.two_points_to_bbox(this.inProgressPoints);
-				var newAnnotation = new Annotation(newBBox);
-				this.annotations.push(newAnnotation);
+				var newAnnotation = new Annotation(newBBox, []);
+				cur_frame.data.annotations.push(newAnnotation);
 
 				console.log("KLabeler: New box: x=[" + newBBox.bmin.x + ", " + newBBox.bmax.y + "], y=[" + newBBox.bmin.y + ", " + newBBox.bmax.y + "]");
 
@@ -678,7 +692,7 @@
 
 				var newBBox = new BBox2D(this.inProgressPoints[0].x, this.inProgressPoints[0].y, 0.0, 0.0);
 				var newAnnotation = new Annotation(newBBox, this.inProgressPoints);
-				this.annotations.push(newAnnotation);
+				cur_frame.data.annotations.push(newAnnotation);
 
 				console.log("KLabeler: New point: (" + newBBox.bmin.x + ", " + newBBox.bmin.y + ")");
 
@@ -691,6 +705,61 @@
 				this.play_click_audio();
 		}
 
+		//
+		// The following methods constitute KLabeler's application-facing API
+		// (for use by the driving application)
+		// 
+
+		clear_boxes() {
+			var cur_frame = this.get_current_frame();
+			var num_annotations = cur_frame.data.annotations.length;
+
+			cur_frame.data.annotations = [];
+			this.clear_in_progress_points();
+			this.render();
+			console.log("Cleared all " + num_annotations + " boxes.");
+		}
+
+		set_annotation_mode(mode) {
+			this.annotation_mode = mode;
+			this.render();
+		}
+
+		set_extreme_points_viz(status) {
+			this.show_extreme_points = status;
+			this.render();
+		}
+
+		set_play_audio(toggle) {
+			this.play_audio = toggle;
+		}
+
+		set_letterbox(toggle) {
+			this.letterbox_image = toggle;
+			this.render();
+		}
+
+		load_image_stack(image_dataset) {
+			console.log('KLabler: loading set of ' + image_dataset.length + ' images');
+	
+			this.frames = [];
+			for (var img of image_dataset) {
+				var frame = new Frame(img);
+
+				// kick off the image load
+				frame.image_load_started = true;
+				frame.source_image.onload = this.handle_image_load;
+				frame.source_image.src = frame.data.source_url;
+				this.frames.push(frame);
+			}
+
+			// FIXME(kayvonf): extract to helper function
+			// reset the viewer sequence
+			this.current_frame = 0;
+			this.clear_in_progress_points();
+			this.visible_image_region = new BBox2D(0.0, 0.0, 1.0, 1.0);
+		}
+
 		init(main_canvas_el) {
 
 			console.log("Klabeler: initializing.");
@@ -701,17 +770,31 @@
 			this.main_canvas_el.addEventListener("mouseover", this.handle_canvas_mouseover, false);
 			this.main_canvas_el.addEventListener("mouseout", this.handle_canvas_mouseout, false);
 
-			this.source_image.onload = this.handle_image_load;
-
 			this.audio_click_sound = new Audio("media/click_sound2.mp3");
 			this.audio_box_done_sound = new Audio("media/click_sound3.mp3");
+
+			// make a dummy frame as a placeholdr until the application provides real data
+			this.frames.push( new Frame(new ImageData));
+			
+			// FIXME(kayvonf): extract to helper function
+			// reset the viewer sequence
+			this.current_frame = 0;
+			this.clear_in_progress_points();
+			this.visible_image_region = new BBox2D(0.0, 0.0, 1.0, 1.0);
+
 		}
+
+		//
+		// end KLabeler's application-facing API
+		//
+
 	}
 
 
 	////////////////////////////////////////////////////////////////////////////////////
-	// begin top-level code
+	// begin top-level application code
 	////////////////////////////////////////////////////////////////////////////////////
+
 
 	var main_canvas_id = 'main_canvas';
 	var labeler = new ImageLabeler;
@@ -720,9 +803,25 @@
 
 		var main_canvas = document.getElementById(main_canvas_id);
 		labeler.init(main_canvas);
-		labeler.set_image("media/testimage.jpg");
+
+		// set the data source
+		var images = [];
+
+		var data = new ImageData;
+		data.source_url = "media/testimage_0.jpg";
+		images.push(data);
+
+		data = new ImageData;
+		data.source_url = "media/testimage_1.jpg";
+		images.push(data);
+
+		data = new ImageData;
+		data.source_url = "media/testimage_2.jpg";
+		images.push(data);
+		
+		labeler.load_image_stack(images);
+
 		labeler.set_annotation_mode(ImageLabeler.ANNOTATION_MODE_EXTREME_POINTS_BBOX);
-		labeler.set_annotation_mode(ImageLabeler.ANNOTATION_MODE_POINT);
 		
 		var button = document.getElementById("toggle_pt_viz_button");
 		button.toggle_status = true;
@@ -795,6 +894,17 @@
 		}
 	}
 
+	function handle_mode_change() {
+		var select = document.getElementById("select_annotation_mode");
+		if (select.value.localeCompare("box_extreme_points") == 0) {
+			labeler.set_annotation_mode(ImageLabeler.ANNOTATION_MODE_EXTREME_POINTS_BBOX);
+		} else if (select.value.localeCompare("box_two_points") == 0) {
+			labeler.set_annotation_mode(ImageLabeler.ANNOTATION_MODE_TWO_POINTS_BBOX);
+		} else if (select.value.localeCompare("point") == 0) {
+			labeler.set_annotation_mode(ImageLabeler.ANNOTATION_MODE_POINT);
+		}
+	}
+
 </script>
 </head>
 <body onload="handle_onload()">
@@ -805,10 +915,17 @@
 </div>
 
 <div>
-	<button id="clear_button" type="button" onclick="clear_boxes()">Clear Annotations</button>
+	Annotation mode:
+	<select id="select_annotation_mode" onchange="handle_mode_change()">
+       <option value="box_extreme_points">Box (via extreme points)</option>
+       <option value="box_two_points">Box (via two corner clicks)</option>
+       <option value="point">Point</option>
+    </select>
+    <button id="clear_button" type="button" onclick="clear_boxes()">Clear Annotations</button>
 	<button id="toggle_pt_viz_button" type="button" onclick="toggle_extreme_points_display()">Hide Extreme Points</button>
 	<button id="toggle_sound_button" type="button" onclick="toggle_sound()">Turn Sound On</button>
 	<button id="toggle_letterbox_button" type="button" onclick="toggle_letterbox()">Scale Image</button>
+
 </div>
 
 <p>Click four times to draw a box.  (Use the <a href="https://arxiv.org/abs/1708.02750">extreme clicking</a> technique: leftmost, topmost, rightmost, bottommost)</p>
