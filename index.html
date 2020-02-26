@@ -66,9 +66,28 @@
 				return false;
 		}
 
+		// return width of the box
+		get width() {
+			return this.bmax.x - this.bmin.x;
+		}
+
+		// return height of the box
+		get height() {
+			return this.bmax.y - this.bmin.y;
+		}
+
 		// return area of bounding box
-		area() {
+		get area() {
 			return (this.bmax.x - this.bmin.x) * (this.bmax.y - this.bmin.y);
+		}
+
+		// create a new bbox that is a scaled version of this one. scaling given by (sx,sy)
+		scale(sx, sy) {
+			var minx = this.bmin.x * sx;
+			var miny = this.bmin.y * sy;
+			var maxx = this.bmax.x * sx;
+			var maxy = this.bmax.y * sy;
+			return new BBox2D(minx, miny, maxx-minx, maxy-miny)
 		}
 
 		// converts an array of four extreme points to a bbox
@@ -229,9 +248,9 @@
 			var smallest_area = Number.MAX_VALUE;
 			for (var i=0; i<this.annotations.length; i++) {
 				if (this.annotations[i].bbox.inside(this.cursorx, this.cursory) &&
-					this.annotations[i].bbox.area() < smallest_area) {
+					this.annotations[i].bbox.area < smallest_area) {
 					selected = i;
-					smallest_area = this.annotations[i].bbox.area();
+					smallest_area = this.annotations[i].bbox.area;
 				}
 			}
 
@@ -371,96 +390,40 @@
 			ctx.strokeRect(box.bmin.x, box.bmin.y, w, h);
 		}
 
-		/*
-		// this is deprecated since we don't want the zoom view any more.
-		render_zoom_view() {
-
-			var ctx = this.zoom_canvas_el.getContext('2d');
-			ctx.clearRect(0, 0, this.zoom_canvas_el.width, this.zoom_canvas_el.height);
-
-			ctx.fillStyle = this.color_zoom_canvas;
-			ctx.fillRect(0, 0, this.zoom_canvas_el.width, this.zoom_canvas_el.height);
-
-			if (this.is_hovering()) {
-
-				// draw zoomed view of image
-				var sw = this.zoom_canvas_el.width / this.zoom_factor;
-				var sh = this.zoom_canvas_el.height / this.zoom_factor;
-				var sx = this.source_image.width * this.cursorx / this.main_canvas_el.width - (sw / 2);
-				var sy = this.source_image.height * this.cursory / this.main_canvas_el.height - (sh / 2);
-
-				ctx.imageSmoothingEnabled = false;
-				ctx.drawImage(this.source_image, sx, sy, sw, sh, 0, 0, this.zoom_canvas_el.width, this.zoom_canvas_el.height);
-
-				// draw zoomed in cursor 
-				ctx.lineWidth = this.zoom_factor;
-				ctx.strokeStyle = this.color_cursor_lines;
-
-				// lines with greater that one pixel thickness are "centered" about the specified endpoints
-				// offset the line so that that (potentially) thick line is aligned with the pixels in the visualization
-				var offsetx = ctx.lineWidth / 2;
-				var offsety = ctx.lineWidth / 2;
-
-				ctx.beginPath();
-				ctx.moveTo(this.zoom_canvas_el.width/2 - offsetx, 0);
-				ctx.lineTo(this.zoom_canvas_el.width/2 - offsetx, this.zoom_canvas_el.height);
-				ctx.stroke();
-
-				ctx.beginPath();
-				ctx.moveTo(0, this.zoom_canvas_el.height/2 - offsety);
-				ctx.lineTo(this.zoom_canvas_el.width, this.zoom_canvas_el.height/2  - offsety);
-				ctx.stroke();
-			}
-		}
-		*/
-
-		render_image() {
-
-			var ctx = this.main_canvas_el.getContext('2d');
+		compute_display_box() {
 
 			// visible region of the image in the image's pixel space
-			var visible_xmin = this.visible_image_region.bmin.x * this.source_image.width;
-			var visible_ymin = this.visible_image_region.bmin.y * this.source_image.height;
-			var visible_xmax = this.visible_image_region.bmax.x * this.source_image.width;
-			var visible_ymax = this.visible_image_region.bmax.y * this.source_image.height;
 
-			var visible_width  = visible_xmax - visible_xmin;
-			var visible_height = visible_ymax - visible_ymin;
+			var visible_box = this.visible_image_region.scale(this.source_image.width, this.source_image.height);
+
+			// by default: scale the image to fill the entire canvas
+			var display_startx = 0;
+			var display_starty = 0;
+			var display_width = this.main_canvas_el.width;
+			var display_height = this.main_canvas_el.height;;
 
 			if (this.letterbox_image) {
 
 				var aspect_canvas = this.main_canvas_el.height / this.main_canvas_el.width;
-				var aspect_visible  = visible_height / visible_width;
+				var aspect_visible  = visible_box.height / visible_box.width;
 
 				if (aspect_canvas >= aspect_visible) {
 					// canvas is taller than the visible part of the image, so letterbox the top and bottom
-					var display_width = this.main_canvas_el.width;
-					var display_height = this.main_canvas_el.width * aspect_visible;
-					var startx = 0; 
-					var starty = (this.main_canvas_el.height - display_height) / 2;
-
-					ctx.drawImage(this.source_image,
-						visible_xmin, visible_ymin, visible_width, visible_height,
-						startx, starty, display_width, display_height);
+					display_width = this.main_canvas_el.width;
+					display_height = this.main_canvas_el.width * aspect_visible;
+					display_startx = 0; 
+					display_starty = (this.main_canvas_el.height - display_height) / 2;
 
 				} else {
 					// canvas is wider than the visible part of the image, so letterbox the left and right
-					var display_height = this.main_canvas_el.height;
-					var display_width = this.main_canvas_el.height / aspect_visible;
-					var startx = (this.main_canvas_el.width - display_width) / 2;
-					var starty = 0; 
-
-					ctx.drawImage(this.source_image,
-						visible_xmin, visible_ymin, visible_width, visible_height,
-						startx, starty, display_width, display_height);
+					display_height = this.main_canvas_el.height;
+					display_width = this.main_canvas_el.height / aspect_visible;
+					display_startx = (this.main_canvas_el.width - display_width) / 2;
+					display_starty = 0; 
 				}
-			} else {
-				// scale the image to fill the entire canvas
-				ctx.drawImage(this.source_image,
-					visible_xmin, visible_ymin, visible_width, visible_height,
-					0, 0, this.main_canvas_el.width, this.main_canvas_el.height);
 			}
 
+			return new BBox2D(display_startx, display_starty, display_width, display_height);
 		}
 
 		render() {
@@ -472,7 +435,14 @@
 			// draw the image to label
 
 			if (this.image_loaded) {
-				this.render_image();
+
+				var visible_box = this.visible_image_region.scale(this.source_image.width, this.source_image.height);
+				var display_box = this.compute_display_box();
+
+				ctx.drawImage(this.source_image,
+					visible_box.bmin.x, visible_box.bmin.y, visible_box.width, visible_box.height,
+					display_box.bmin.x, display_box.bmin.y, display_box.width, display_box.height);
+
 			} else {
 				ctx.fillStyle = this.color_main_canvas;
 				ctx.fillRect(0, 0, this.main_canvas_el.width, this.main_canvas_el.height);
