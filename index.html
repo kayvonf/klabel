@@ -21,16 +21,18 @@
 		TODO list:
 		* move to normalized coordinates
 		* extract bbox data to client (including extreme points)
-		* support images with different size/aspect ratio as the canvas
 		* support multiple images
 		* detect bad extreme points as early as possible (before end of box)
-		* regular bbox mode
 		* single point annotation mode
 
 		LICENSES:
 		* This is the "click1" sound:
 		  https://www.zapsplat.com/music/metal-impact-small-plate-disc-hit-vibrate-and-resonate-2/
 	*/
+
+	function clamp(x, min_value, max_value) {
+		return Math.min(max_value, Math.max(min_value, x));
+	}
 
 	class Point2D {
 		constructor(x, y) {
@@ -153,16 +155,16 @@
 	// points provided by the labeler since they contain additional information
 	// about the object's silhouette that is lost if we just store the bounding box.  
 	class Annotation {
-		constructor(bbox, extremePoints) {
+		constructor(bbox, extreme_points) {
 			this.bbox = bbox;
-			this.extremePoints = extremePoints;
+			this.extreme_points = extreme_points;
 		}
 	}
 
 	class ImageLabeler {
 
 		static get ANNOTATION_MODE_POINT() { return 0; }
-		static get ANNOTATION_MODE_TWO_POINT_BBOX() { return 1; }
+		static get ANNOTATION_MODE_TWO_POINTS_BBOX() { return 1; }
 		static get ANNOTATION_MODE_EXTREME_POINTS_BBOX() { return 2; }
 
 		constructor() {
@@ -205,18 +207,45 @@
 		// Clamp the cursor to the image dimensions so that clicks and bounding boxes
 		// are always on the image.
 		set_canvas_cursor_position(x,y) {
-			this.cursorx = Math.min(this.main_canvas_el.width-1, Math.max(0, x));
-			this.cursory = Math.min(this.main_canvas_el.height-1, Math.max(0, y));	
+			this.cursorx = clamp(x, 0, this.main_canvas_el.width-1);
+			this.cursory = clamp(y, 0, this.main_canvas_el.height-1);	
 		}
 
 		// convert point in canvas pixel coordinates to normalized [0,1]^2 image space coordinates
 		canvas_to_image(pt) {
-			return;
+
+			var visible_box = this.visible_image_region.scale(this.source_image.width, this.source_image.height);
+			var display_box = this.compute_display_box();
+
+			// pixel space coordinates
+			var image_pixel_x = visible_box.bmin.x + visible_box.width * (pt.x - display_box.bmin.x) / display_box.width;
+			var image_pixel_y = visible_box.bmin.y + visible_box.height * (pt.y - display_box.bmin.y) / display_box.height;
+
+			// normalized image space coordinates 
+			var norm_x = clamp(image_pixel_x / this.source_image.width, 0.0, 1.0);
+			var norm_y = clamp(image_pixel_y / this.source_image.height, 0.0, 1.0);
+
+			return new Point2D(norm_x, norm_y);
 		}
 
 		// convert point in normalized [0,1]^2 image space coordinates to canvas pixel coordinates
 		image_to_canvas(pt) {
-			return;
+			
+			var visible_box = this.visible_image_region.scale(this.source_image.width, this.source_image.height);
+			var display_box = this.compute_display_box();
+
+			// pixel space coordinates of pt
+			var image_pixel_x = pt.x * this.source_image.width;
+			var image_pixel_y = pt.y * this.source_image.height;
+
+			// convert into normalized coordinates in the visible region
+			var visible_region_x = (image_pixel_x - visible_box.bmin.x) / visible_box.width;
+			var visible_region_y = (image_pixel_y - visible_box.bmin.y) / visible_box.height;
+
+			var display_x = display_box.bmin.x + visible_region_x * display_box.width;
+			var display_y = display_box.bmin.y + visible_region_y * display_box.height;
+
+			return new Point2D(display_x, display_y);
 		}
 
 		is_hovering() {
@@ -228,7 +257,7 @@
 		}
 
 		is_annotation_mode_two_point_bbox() {
-			return this.annotation_mode == ImageLabeler.ANNOTATION_MODE_TWO_POINT_BBOX;
+			return this.annotation_mode == ImageLabeler.ANNOTATION_MODE_TWO_POINTS_BBOX;
 		}
 
 		is_annotation_mode_extreme_points_bbox() {
@@ -243,10 +272,12 @@
 			if (!this.is_hovering())
 				return selected;
 
+			var image_cursor_pt = this.canvas_to_image(new Point2D(this.cursorx, this.cursory));
+
 			// select the smallest box that the cursor is in
 			var smallest_area = Number.MAX_VALUE;
 			for (var i=0; i<this.annotations.length; i++) {
-				if (this.annotations[i].bbox.inside(this.cursorx, this.cursory) &&
+				if (this.annotations[i].bbox.inside(image_cursor_pt.x, image_cursor_pt.y) &&
 					this.annotations[i].bbox.area < smallest_area) {
 					selected = i;
 					smallest_area = this.annotations[i].bbox.area;
@@ -277,6 +308,11 @@
 			this.clear_in_progress_points();
 			this.render();
 			console.log("Cleared all " + num_annotations + " boxes.");
+		}
+
+		set_annotation_mode(mode) {
+			this.annotation_mode = mode;
+			this.render();
 		}
 
 		set_extreme_points_viz(status) {
@@ -329,40 +365,40 @@
 			}
 		}
 
-		draw_inprogress_extreme_points_bbox(ctx) {
+		draw_inprogress_extreme_points_bbox(ctx, canvas_in_progress_points) {
 
 			// draw the points we've locked down
 			ctx.beginPath();
-			ctx.moveTo(this.inProgressPoints[0].x, this.inProgressPoints[0].y);
-			for (var i=1; i<this.inProgressPoints.length; i++) {
+			ctx.moveTo(canvas_in_progress_points[0].x, canvas_in_progress_points[0].y);
+			for (var i=1; i<canvas_in_progress_points.length; i++) {
 				var cornerx = 0;
 				var cornery = 0;
 				if (i == 1) {
-					cornerx = this.inProgressPoints[0].x;
-					cornery = this.inProgressPoints[1].y;
+					cornerx = canvas_in_progress_points[0].x;
+					cornery = canvas_in_progress_points[1].y;
 				} else if (i == 2) {
-					cornerx = this.inProgressPoints[2].x;
-					cornery = this.inProgressPoints[1].y;
+					cornerx = canvas_in_progress_points[2].x;
+					cornery = canvas_in_progress_points[1].y;
 				} else if (i == 3) {
-					cornerx = this.inProgressPoints[0].x;
-					cornery = this.inProgressPoints[3].y;
+					cornerx = canvas_in_progress_points[0].x;
+					cornery = canvas_in_progress_points[3].y;
 				}
 				ctx.lineTo(cornerx, cornery);
 			}
 
 			// now draw the tentative point
 			if (this.is_hovering()) {
-				if (this.inProgressPoints.length == 1) {
-					ctx.lineTo(this.inProgressPoints[0].x, this.cursory);		
+				if (canvas_in_progress_points.length == 1) {
+					ctx.lineTo(canvas_in_progress_points[0].x, this.cursory);		
 					ctx.lineTo(this.cursorx, this.cursory);
-				} else if (this.inProgressPoints.length == 2) {
-					ctx.lineTo(this.cursorx, this.inProgressPoints[1].y);
+				} else if (canvas_in_progress_points.length == 2) {
+					ctx.lineTo(this.cursorx, canvas_in_progress_points[1].y);
 					ctx.lineTo(this.cursorx, this.cursory);
-				} else if (this.inProgressPoints.length == 3) {
-					ctx.lineTo(this.inProgressPoints[2].x, this.cursory);
+				} else if (canvas_in_progress_points.length == 3) {
+					ctx.lineTo(canvas_in_progress_points[2].x, this.cursory);
 					// extrapolation of rest of box
-					ctx.lineTo(this.inProgressPoints[0].x, this.cursory);
-					ctx.lineTo(this.inProgressPoints[0].x, this.inProgressPoints[0].y);
+					ctx.lineTo(canvas_in_progress_points[0].x, this.cursory);
+					ctx.lineTo(canvas_in_progress_points[0].x, canvas_in_progress_points[0].y);
 				}
 			}
 			ctx.stroke();
@@ -370,17 +406,17 @@
 			// draw dots at all the extreme points
 			var full_circle_angle = 2 * Math.PI;
 			ctx.fillStyle = this.color_extreme_point_fill;
-			for (var i=0; i<this.inProgressPoints.length; i++) {
+			for (var i=0; i<canvas_in_progress_points.length; i++) {
 				ctx.beginPath();
-  				ctx.arc(this.inProgressPoints[i].x, this.inProgressPoints[i].y, this.extreme_point_radius, 0, full_circle_angle, false);
+  				ctx.arc(canvas_in_progress_points[i].x, canvas_in_progress_points[i].y, this.extreme_point_radius, 0, full_circle_angle, false);
 		        ctx.fill();
 			}	
 		}
 
-		draw_inprogress_two_points_bbox(ctx) {
+		draw_inprogress_two_points_bbox(ctx, canvas_in_progress_points) {
 
 			var pts = []
-			pts.push(this.inProgressPoints[0]);
+			pts.push(canvas_in_progress_points[0]);
 			pts.push(new Point2D(this.cursorx, this.cursory));
 
 			var box = BBox2D.twoPointsToBBox(pts);
@@ -389,6 +425,7 @@
 			ctx.strokeRect(box.bmin.x, box.bmin.y, w, h);
 		}
 
+		// computes the canvas-space bounding box of the rendered image
 		compute_display_box() {
 
 			// visible region of the image in the image's pixel space
@@ -470,29 +507,33 @@
 				var obj = this.annotations[obj_id];
 				var selectedObj = (selected == obj_id);
 
-				var w = obj.bbox.bmax.x - obj.bbox.bmin.x;
-				var h = obj.bbox.bmax.y - obj.bbox.bmin.y;
+				// transform to canvas space
+				var canvas_min = this.image_to_canvas(obj.bbox.bmin);
+				var canvas_max = this.image_to_canvas(obj.bbox.bmax);
+				var canvas_width = canvas_max.x - canvas_min.x;
+				var canvas_height = canvas_max.y - canvas_min.y; 
 
 				// highlight the selected box
 				if (selectedObj) {
 					ctx.lineWidth = 3;
 					ctx.strokeStyle = this.color_highlight_box_outline;
 					ctx.fillStyle = this.color_highlight_box_fill;
-					ctx.fillRect(obj.bbox.bmin.x, obj.bbox.bmin.y, w, h);
+					ctx.fillRect(canvas_min.x, canvas_min.y, canvas_width, canvas_height);
 				} else {
 					ctx.lineWidth = 2;
 					ctx.strokeStyle = this.color_box_outline;
 				}
 
-				ctx.strokeRect(obj.bbox.bmin.x, obj.bbox.bmin.y, w, h);
+				ctx.strokeRect(canvas_min.x, canvas_min.y, canvas_width, canvas_height);
 
 				// draw dots indicating all the extreme points (if there are extreme points)
 				if (this.show_extreme_points && obj.extreme_points !== undefined)  {
 					var full_circle_angle = 2 * Math.PI;
 					ctx.fillStyle = this.color_extreme_point_fill;
 					for (var i=0; i<4; i++) {
+						var canvas_pt = this.image_to_canvas(obj.extreme_points[i]);
 						ctx.beginPath();
-	      				ctx.arc(obj.extremePoints[i].x, obj.extremePoints[i].y, this.extreme_point_radius, 0, full_circle_angle, false);
+	      				ctx.arc(canvas_pt.x, canvas_pt.y, this.extreme_point_radius, 0, full_circle_angle, false);
 				        ctx.fill();
 					}
 				}	
@@ -502,13 +543,18 @@
 
 			if (this.inProgressPoints.length > 0) {
 
+				// convert image-space points to canvas space for drawing on screen
+				var canvas_in_progress_points = [];
+				for (var i =0; i<this.inProgressPoints.length; i++)
+					canvas_in_progress_points[i] = this.image_to_canvas(this.inProgressPoints[i]);
+
 				ctx.lineWidth = 1;
 				ctx.strokeStyle = this.color_in_progress_box_outline; 
 
 				if (this.is_annotation_mode_extreme_points_bbox()) {
-					this.draw_inprogress_extreme_points_bbox(ctx);
+					this.draw_inprogress_extreme_points_bbox(ctx, canvas_in_progress_points);
 				} else if (this.is_annotation_mode_two_point_bbox()) {
-					this.draw_inprogress_two_point_bbox(ctx);
+					this.draw_inprogress_two_points_bbox(ctx, canvas_in_progress_points);
 				}
 			}
 
@@ -563,23 +609,10 @@
 
 			this.set_canvas_cursor_position(event.offsetX, event.offsetY);
 
-			var p = new Point2D(this.cursorx, this.cursory);
-			this.inProgressPoints.push(p);
+			var image_pt = this.canvas_to_image(new Point2D(this.cursorx, this.cursory));
+			this.inProgressPoints.push(image_pt);
 
-			console.log("KLabeler: Click at x=" + p.x + ", y=" + p.y + " point " + this.inProgressPoints.length);
-
-			// if the labeler is configured to be in extreme points mode, after each click determine whether we
-			// have a alid set of extreme points. 
-			/*
-			if (this.is_annotation_mode_extreme_points_bbox() && this.inProgressPoints.length < 4) {
-				if (!BBox2D.validate_extreme_points(this.inProgressPoints)) {
-					console.log("KLabeler: Points clicked are not valid extreme points. Discarding box.");
-					this.clear_in_progress_points();
-					this.render();
-					return;
-				}
-			}
-			*/
+			console.log("KLabeler: Click at x=" + image_pt.x + ", y=" + image_pt.y + " point " + this.inProgressPoints.length);
 
 			// handle cases where this click completes a new annotation
 			// (e.g., a new bounding box annotation or a new point annotation)
@@ -598,7 +631,7 @@
 
 				this.annotations.push(newAnnotation);
 
-				console.log("KLabeler: New box: x=[" + newBBox.bmin.x + ", " + newBBox.bmax.y + "], y=[" + newBBox.bmin.y + ", " + newBBox.bmax.y + "]");
+				console.log("KLabeler: New box: x=[" + newBBox.bmin.x + ", " + newBBox.bmax.x + "], y=[" + newBBox.bmin.y + ", " + newBBox.bmax.y + "]");
 				console.log("KLabeler: There are now " + this.annotations.length + " box(es).");
 
 				this.clear_in_progress_points();
@@ -623,7 +656,7 @@
 
 				this.clear_in_progress_points();
 
-			} else if (this.is_annotation_mode_two_point_bbox()) {
+			} else if (this.is_annotation_mode_point()) {
 
 				console.log("KLabeler: Annotation of points is not supported yet!");
 				this.clear_in_progress_points();
@@ -658,17 +691,16 @@
 	////////////////////////////////////////////////////////////////////////////////////
 
 	var main_canvas_id = 'main_canvas';
-	//var zoom_canvas_id = 'zoom_canvas';
 	var labeler = new ImageLabeler;
 
 	function handle_onload() {
 
 		var main_canvas = document.getElementById(main_canvas_id);
-		//var zoom_canvas = document.getElementById(zoom_canvas_id);
 		labeler.init(main_canvas);
 		labeler.set_image("media/testimage.jpg");
-		//labeler.set_zoom_factor(8);
-
+		//labeler.set_annotation_mode(ImageLabeler.ANNOTATION_MODE_EXTREME_POINTS_BBOX);
+		labeler.set_annotation_mode(ImageLabeler.ANNOTATION_MODE_TWO_POINTS_BBOX);
+		
 		var button = document.getElementById("toggle_pt_viz_button");
 		button.toggle_status = true;
 		labeler.set_extreme_points_viz(button.toggle_status);
