@@ -724,7 +724,6 @@
 			cur_frame.data.annotations = [];
 			this.clear_in_progress_points();
 			this.render();
-			console.log("Cleared all " + num_annotations + " boxes.");
 		}
 
 		set_annotation_mode(mode) {
@@ -758,7 +757,7 @@
 			this.current_frame_index = frame_num;
 			this.clear_in_progress_points();
 			this.render();
-			console.log("KLabler: set current frame num to " + this.current_frame_index);
+			console.log("KLabeler: set current frame num to " + this.current_frame_index);
 		}
 
 		make_image_load_handler(x) {
@@ -788,6 +787,12 @@
 			this.current_frame_index = 0;
 			this.clear_in_progress_points();
 			this.visible_image_region = new BBox2D(0.0, 0.0, 1.0, 1.0);
+		}
+
+		get_annotations() {
+			console.log("KLabeler: get_annotations() is not implemented yet.")
+			var results = [];
+			return results;
 		}
 
 		init(main_canvas_el) {
@@ -826,9 +831,8 @@
 	////////////////////////////////////////////////////////////////////////////////////
 
 
-	var main_canvas_id = 'main_canvas';
+	var main_canvas_id = 'main_canvas';   // this is the DOM canvas element 
 	var labeler = new ImageLabeler;
-	var current_frame = 0;
 
 	function handle_onload() {
 
@@ -863,7 +867,6 @@
 		}
 		
 		labeler.load_image_stack(image_data);
-		current_frame = labeler.get_current_frame_num();
 
 		labeler.set_annotation_mode(ImageLabeler.ANNOTATION_MODE_EXTREME_POINTS_BBOX);
 		
@@ -895,7 +898,7 @@
 		});
 	}
 
-	function clear_boxes() {
+	function handle_clear_boxes() {
 		labeler.clear_boxes();
 	}
 
@@ -949,34 +952,13 @@
 		}
 	}
 
-	function handle_prev_frame() {
-		var old_frame = current_frame;
-		current_frame = current_frame -1;
-		if (current_frame < 0)
-			current_frame = 0;
-
-		if (old_frame != current_frame)
-			labeler.set_current_frame_num(current_frame);
-	}
-
-	function handle_next_frame() {
-		var old_frame = current_frame;
-		current_frame = current_frame + 1;
-		if (current_frame >= labeler.get_num_frames())
-			current_frame = labeler.get_num_frames()-1;
-
-		if (old_frame != current_frame)
-			labeler.set_current_frame_num(current_frame);
-	}
-
-
 </script>
 </head>
+
 <body onload="handle_onload()">
 
 <div id="labeled_div">
 	<canvas id="main_canvas" width="960" height="440" style="border: 8px solid #c0c0c0;" ></canvas>
-	<!-- <canvas id="zoom_canvas" width="270" height="270" style="border: 8px solid #c0c0c0;"></canvas> -->
 </div>
 
 <div>
@@ -986,15 +968,11 @@
        <option value="box_two_points">Box (via two corner clicks)</option>
        <option value="point">Point</option>
     </select>
-    <button id="clear_button" type="button" onclick="clear_boxes()">Clear Annotations</button> --- 
+    <button id="clear_button" type="button" onclick="handle_clear_boxes()">Clear Annotations</button> --- 
 
 	<button id="toggle_pt_viz_button" type="button" onclick="toggle_extreme_points_display()">Hide Extreme Points</button>
 	<button id="toggle_sound_button" type="button" onclick="toggle_sound()">Turn Sound On</button>
 	<button id="toggle_letterbox_button" type="button" onclick="toggle_letterbox()">Use Scaled View</button>
-	<!--
-	<button id="prev_frame_button" type="button" onclick="handle_prev_frame()">Prev</button>
-	<button id="next_frame_button" type="button" onclick="handle_next_frame()">Next</button>
-	-->
 </div>
 
 <p style="width: 960px; border-top: 1px solid #606060; padding-top: 10px;">Annotation Help:</p>
