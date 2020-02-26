@@ -186,8 +186,7 @@
 			this.shiftKeyDown = false;
 
 			// colors
-			this.color_main_canvas = '#c0c0c0';
-			//this.color_zoom_canvas = '#404040';
+			this.color_main_canvas = '#202020';
 			this.color_cursor_lines = 'rgba(0,255,255,0.5)';
 			this.color_in_progress_box_outline = 'rgba(255,255,255,0.75)';
 			this.color_box_outline = 'rgba(255,200,0,0.75)';
@@ -430,7 +429,8 @@
 
 			var ctx = this.main_canvas_el.getContext('2d');
 
-			ctx.clearRect(0, 0, this.main_canvas_el.width, this.main_canvas_el.height);
+			ctx.fillStyle = this.color_main_canvas;
+			ctx.fillRect(0, 0, this.main_canvas_el.width, this.main_canvas_el.height);
 
 			// draw the image to label
 
@@ -442,10 +442,6 @@
 				ctx.drawImage(this.source_image,
 					visible_box.bmin.x, visible_box.bmin.y, visible_box.width, visible_box.height,
 					display_box.bmin.x, display_box.bmin.y, display_box.width, display_box.height);
-
-			} else {
-				ctx.fillStyle = this.color_main_canvas;
-				ctx.fillRect(0, 0, this.main_canvas_el.width, this.main_canvas_el.height);
 			}
 
 			// draw guidelines that move with the mouse cursor
