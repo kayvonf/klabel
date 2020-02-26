@@ -19,11 +19,10 @@
 
 	/*
 		TODO list:
-		* move to normalized coordinates
-		* extract bbox data to client (including extreme points)
-		* support multiple images
-		* detect bad extreme points as early as possible (before end of box)
 		* single point annotation mode
+		* support multiple images
+		* extract bbox data to client (including extreme points)
+		* detect bad extreme points as early as possible (before end of box)
 
 		LICENSES:
 		* This is the "click1" sound:
@@ -93,7 +92,7 @@
 		}
 
 		// converts an array of four extreme points to a bbox
-		static extremePointsToBBox(pts) {
+		static extreme_points_to_bbox(pts) {
 
 			// pts[0] = left extreme
 			// pts[1] = top extreme
@@ -111,7 +110,7 @@
 
 		// converts an array of two points to a bbox.  The code makes no assumptions about
 		// which point in the array is which corner of the bbox. 
-		static twoPointsToBBox(pts) {
+		static two_points_to_bbox(pts) {
 
 			var startx = Math.min(pts[0].x, pts[1].x);
 			var starty = Math.min(pts[0].y, pts[1].y);
@@ -151,9 +150,10 @@
 	}
 
 	// An Annotation stores the bounding box of the object and the extreme
-	// points used to create the bounding box.  We don't want to disgard the extreme
+	// points used to create the bounding box.  We want to keep the extreme
 	// points provided by the labeler since they contain additional information
-	// about the object's silhouette that is lost if we just store the bounding box.  
+	// about the object's silhouette that would be lost if we just
+	// store its bounding box.  
 	class Annotation {
 		constructor(bbox, extreme_points) {
 			this.bbox = bbox;
@@ -195,6 +195,7 @@
 			this.color_highlight_box_outline = 'rgba(255,200,100,1.0)';
 			this.color_highlight_box_fill = 'rgba(255,200,150,0.2)';
 			this.color_extreme_point_fill = '#ffff00';
+			this.color_point_fill = '#ffff00';
 
 			// display settings
 			this.visible_image_region = new BBox2D(0.0, 0.0, 1.0, 1.0);
@@ -365,6 +366,43 @@
 			}
 		}
 
+		// computes the canvas-space bounding box of the rendered image
+		compute_display_box() {
+
+			// visible region of the image in the image's pixel space
+
+			var visible_box = this.visible_image_region.scale(this.source_image.width, this.source_image.height);
+
+			// by default: scale the image to fill the entire canvas
+			var display_startx = 0;
+			var display_starty = 0;
+			var display_width = this.main_canvas_el.width;
+			var display_height = this.main_canvas_el.height;;
+
+			if (this.letterbox_image) {
+
+				var aspect_canvas = this.main_canvas_el.height / this.main_canvas_el.width;
+				var aspect_visible  = visible_box.height / visible_box.width;
+
+				if (aspect_canvas >= aspect_visible) {
+					// canvas is taller than the visible part of the image, so letterbox the top and bottom
+					display_width = this.main_canvas_el.width;
+					display_height = this.main_canvas_el.width * aspect_visible;
+					display_startx = 0; 
+					display_starty = (this.main_canvas_el.height - display_height) / 2;
+
+				} else {
+					// canvas is wider than the visible part of the image, so letterbox the left and right
+					display_height = this.main_canvas_el.height;
+					display_width = this.main_canvas_el.height / aspect_visible;
+					display_startx = (this.main_canvas_el.width - display_width) / 2;
+					display_starty = 0; 
+				}
+			}
+
+			return new BBox2D(display_startx, display_starty, display_width, display_height);
+		}
+
 		draw_inprogress_extreme_points_bbox(ctx, canvas_in_progress_points) {
 
 			// draw the points we've locked down
@@ -419,47 +457,10 @@
 			pts.push(canvas_in_progress_points[0]);
 			pts.push(new Point2D(this.cursorx, this.cursory));
 
-			var box = BBox2D.twoPointsToBBox(pts);
+			var box = BBox2D.two_points_to_bbox(pts);
 			var w = box.bmax.x - box.bmin.x;
 			var h = box.bmax.y - box.bmin.y;
 			ctx.strokeRect(box.bmin.x, box.bmin.y, w, h);
-		}
-
-		// computes the canvas-space bounding box of the rendered image
-		compute_display_box() {
-
-			// visible region of the image in the image's pixel space
-
-			var visible_box = this.visible_image_region.scale(this.source_image.width, this.source_image.height);
-
-			// by default: scale the image to fill the entire canvas
-			var display_startx = 0;
-			var display_starty = 0;
-			var display_width = this.main_canvas_el.width;
-			var display_height = this.main_canvas_el.height;;
-
-			if (this.letterbox_image) {
-
-				var aspect_canvas = this.main_canvas_el.height / this.main_canvas_el.width;
-				var aspect_visible  = visible_box.height / visible_box.width;
-
-				if (aspect_canvas >= aspect_visible) {
-					// canvas is taller than the visible part of the image, so letterbox the top and bottom
-					display_width = this.main_canvas_el.width;
-					display_height = this.main_canvas_el.width * aspect_visible;
-					display_startx = 0; 
-					display_starty = (this.main_canvas_el.height - display_height) / 2;
-
-				} else {
-					// canvas is wider than the visible part of the image, so letterbox the left and right
-					display_height = this.main_canvas_el.height;
-					display_width = this.main_canvas_el.height / aspect_visible;
-					display_startx = (this.main_canvas_el.width - display_width) / 2;
-					display_starty = 0; 
-				}
-			}
-
-			return new BBox2D(display_startx, display_starty, display_width, display_height);
 		}
 
 		render() {
@@ -498,7 +499,7 @@
 				ctx.stroke();
 			}
 
-			// draw existing bounding boxes
+			// draw existing annotations.  These annotations may be bounding boxes or points 
 			
 			var selected = this.get_selected_object();
 
@@ -513,30 +514,44 @@
 				var canvas_width = canvas_max.x - canvas_min.x;
 				var canvas_height = canvas_max.y - canvas_min.y; 
 
-				// highlight the selected box
-				if (selectedObj) {
-					ctx.lineWidth = 3;
-					ctx.strokeStyle = this.color_highlight_box_outline;
-					ctx.fillStyle = this.color_highlight_box_fill;
-					ctx.fillRect(canvas_min.x, canvas_min.y, canvas_width, canvas_height);
-				} else {
-					ctx.lineWidth = 2;
-					ctx.strokeStyle = this.color_box_outline;
-				}
+				// draw a point annotation
+				if (obj.extreme_points.length == 1) {
 
-				ctx.strokeRect(canvas_min.x, canvas_min.y, canvas_width, canvas_height);
-
-				// draw dots indicating all the extreme points (if there are extreme points)
-				if (this.show_extreme_points && obj.extreme_points !== undefined)  {
 					var full_circle_angle = 2 * Math.PI;
-					ctx.fillStyle = this.color_extreme_point_fill;
-					for (var i=0; i<4; i++) {
-						var canvas_pt = this.image_to_canvas(obj.extreme_points[i]);
-						ctx.beginPath();
-	      				ctx.arc(canvas_pt.x, canvas_pt.y, this.extreme_point_radius, 0, full_circle_angle, false);
-				        ctx.fill();
+					var canvas_pt = this.image_to_canvas(obj.extreme_points[0]);
+
+					ctx.fillStyle = this.color_point_fill;
+					ctx.beginPath();
+      				ctx.arc(canvas_pt.x, canvas_pt.y, this.extreme_point_radius, 0, full_circle_angle, false);
+			        ctx.fill();
+
+				} else {
+
+					// highlight the selected box
+					if (selectedObj) {
+						ctx.lineWidth = 3;
+						ctx.strokeStyle = this.color_highlight_box_outline;
+						ctx.fillStyle = this.color_highlight_box_fill;
+						ctx.fillRect(canvas_min.x, canvas_min.y, canvas_width, canvas_height);
+					} else {
+						ctx.lineWidth = 2;
+						ctx.strokeStyle = this.color_box_outline;
 					}
-				}	
+
+					ctx.strokeRect(canvas_min.x, canvas_min.y, canvas_width, canvas_height);
+
+					// draw dots indicating all the extreme points (if there are extreme points)
+					if (this.show_extreme_points && obj.extreme_points !== undefined)  {
+						var full_circle_angle = 2 * Math.PI;
+						ctx.fillStyle = this.color_extreme_point_fill;
+						for (var i=0; i<4; i++) {
+							var canvas_pt = this.image_to_canvas(obj.extreme_points[i]);
+							ctx.beginPath();
+		      				ctx.arc(canvas_pt.x, canvas_pt.y, this.extreme_point_radius, 0, full_circle_angle, false);
+					        ctx.fill();
+						}
+					}	
+				}
 			}
 
 			// render the "in-progress" points (the current partial bounding box)
@@ -626,13 +641,12 @@
 					return;
 				}
 
-				var newBBox = BBox2D.extremePointsToBBox(this.inProgressPoints);
+				var newBBox = BBox2D.extreme_points_to_bbox(this.inProgressPoints);
 				var newAnnotation = new Annotation(newBBox, this.inProgressPoints);
 
 				this.annotations.push(newAnnotation);
 
 				console.log("KLabeler: New box: x=[" + newBBox.bmin.x + ", " + newBBox.bmax.x + "], y=[" + newBBox.bmin.y + ", " + newBBox.bmax.y + "]");
-				console.log("KLabeler: There are now " + this.annotations.length + " box(es).");
 
 				this.clear_in_progress_points();
 
@@ -647,18 +661,22 @@
 					return;
 				}
 
-				var newBBox = BBox2D.twoPointsToBBox(this.inProgressPoints);
+				var newBBox = BBox2D.two_points_to_bbox(this.inProgressPoints);
 				var newAnnotation = new Annotation(newBBox);
 				this.annotations.push(newAnnotation);
 
 				console.log("KLabeler: New box: x=[" + newBBox.bmin.x + ", " + newBBox.bmax.y + "], y=[" + newBBox.bmin.y + ", " + newBBox.bmax.y + "]");
-				console.log("KLabeler: There are now " + this.annotations.length + " box(es).");
 
 				this.clear_in_progress_points();
 
 			} else if (this.is_annotation_mode_point()) {
 
-				console.log("KLabeler: Annotation of points is not supported yet!");
+				var newBBox = new BBox2D(this.inProgressPoints[0].x, this.inProgressPoints[0].y, 0.0, 0.0);
+				var newAnnotation = new Annotation(newBBox, this.inProgressPoints);
+				this.annotations.push(newAnnotation);
+
+				console.log("KLabeler: New point: (" + newBBox.bmin.x + ", " + newBBox.bmin.y + ")");
+
 				this.clear_in_progress_points();
 			}
 
@@ -698,8 +716,8 @@
 		var main_canvas = document.getElementById(main_canvas_id);
 		labeler.init(main_canvas);
 		labeler.set_image("media/testimage.jpg");
-		//labeler.set_annotation_mode(ImageLabeler.ANNOTATION_MODE_EXTREME_POINTS_BBOX);
-		labeler.set_annotation_mode(ImageLabeler.ANNOTATION_MODE_TWO_POINTS_BBOX);
+		labeler.set_annotation_mode(ImageLabeler.ANNOTATION_MODE_EXTREME_POINTS_BBOX);
+		labeler.set_annotation_mode(ImageLabeler.ANNOTATION_MODE_POINT);
 		
 		var button = document.getElementById("toggle_pt_viz_button");
 		button.toggle_status = true;
