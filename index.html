@@ -138,6 +138,8 @@
 			labeler.set_annotation_mode(Annotation.ANNOTATION_MODE_TWO_POINTS_BBOX);
 		} else if (select.value.localeCompare("point") == 0) {
 			labeler.set_annotation_mode(Annotation.ANNOTATION_MODE_POINT);
+		} else if (select.value.localeCompare("per_frame") == 0) {
+			labeler.set_annotation_mode(Annotation.ANNOTATION_MODE_PER_FRAME);
 		}
 	}
 
@@ -161,6 +163,7 @@
        <option value="box_extreme_points">Box (via extreme points)</option>
        <option value="box_two_points">Box (via two corner clicks)</option>
        <option value="point">Point</option>
+       <option value="per_frame">Per Frame</option>
     </select>
     <button id="clear_button" type="button" onclick="handle_clear_boxes()">Clear Annotations</button> --- 
 
