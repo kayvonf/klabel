@@ -155,7 +155,6 @@ class TwoPointBoxAnnotation extends Annotation {
 	}
 }
 
-
 class ExtremeBoxAnnnotation extends Annotation {
 	constructor(extreme_points) {
 		super(Annotation.ANNOTATION_MODE_EXTREME_POINTS_BBOX);
@@ -559,7 +558,7 @@ class ImageLabeler {
 
 				ctx.strokeRect(canvas_min.x, canvas_min.y, canvas_width, canvas_height);
 
-				// draw dots indicating all the extreme points (if there are extreme points)
+				// if this is a box created from extreme points, draw dots indicating all the extreme points
 				if (this.show_extreme_points && obj.type == Annotation.ANNOTATION_MODE_EXTREME_POINTS_BBOX)  {
 					var full_circle_angle = 2 * Math.PI;
 					ctx.fillStyle = this.color_extreme_point_fill;
@@ -573,7 +572,7 @@ class ImageLabeler {
 			}
 		}
 
-		// render the "in-progress" points (the current partial bounding box)
+		// render "in-progress" points (the current partial bounding box)
 
 		if (this.inProgressPoints.length > 0) {
 
@@ -595,7 +594,7 @@ class ImageLabeler {
 	}
 
 	handle_image_load(image_index) {
-		console.log("KLabeler: Image " + image_index + " loaded.");
+		//console.log("KLabeler: Image " + image_index + " loaded.");
 
 		this.frames[image_index].image_load_complete = true;
 		this.render();
@@ -713,10 +712,10 @@ class ImageLabeler {
 			this.play_click_audio();
 	}
 
-	//
+	/////////////////////////////////////////////////////////////////////////////////////////////
 	// The following methods constitute KLabeler's application-facing API
-	// (for use by the driving application)
-	// 
+	// (called by driving applications)
+	/////////////////////////////////////////////////////////////////////////////////////////////
 
 	clear_boxes() {
 		var cur_frame = this.get_current_frame();
@@ -768,7 +767,7 @@ class ImageLabeler {
 	}
 
 	load_image_stack(image_dataset) {
-		console.log('KLabeler: loading set of ' + image_dataset.length + ' images');
+		console.log('KLabeler: loading set of ' + image_dataset.length + ' images.');
 
 		this.frames = [];
 		var image_index = 0;
@@ -791,14 +790,17 @@ class ImageLabeler {
 	}
 
 	get_annotations() {
-		console.log("KLabeler: get_annotations() is not implemented yet.")
 		var results = [];
+		for (var i=0; i<this.frames.length; i++) {
+			results.push(this.frames[i].data);
+		}
+
 		return results;
 	}
 
 	init(main_canvas_el) {
 
-		console.log("Klabeler: initializing.");
+		console.log("Klabeler: initializing...");
 
 		this.main_canvas_el = main_canvas_el;
 		this.main_canvas_el.addEventListener("mousemove", this.handle_canvas_mousemove, false);
@@ -810,7 +812,7 @@ class ImageLabeler {
 		this.audio_box_done_sound = new Audio("media/click_sound3.mp3");
 
 		// make a dummy frame as a placeholdr until the application provides real data
-		this.frames.push( new Frame(new ImageData));
+		this.frames.push(new Frame(new ImageData));
 		
 		// FIXME(kayvonf): extract to helper function
 		// reset the viewer sequence

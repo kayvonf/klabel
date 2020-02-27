@@ -141,6 +141,11 @@
 		}
 	}
 
+	function handle_get_annotations() {
+		var results = labeler.get_annotations();
+		console.log(results);
+	}
+
 </script>
 </head>
 
@@ -161,7 +166,8 @@
 
 	<button id="toggle_pt_viz_button" type="button" onclick="toggle_extreme_points_display()">Hide Extreme Points</button>
 	<button id="toggle_sound_button" type="button" onclick="toggle_sound()">Turn Sound On</button>
-	<button id="toggle_letterbox_button" type="button" onclick="toggle_letterbox()">Use Scaled View</button>
+	<button id="toggle_letterbox_button" type="button" onclick="toggle_letterbox()">Use Scaled View</button> ---
+	<button id="get_annotations" type="button" onclick="handle_get_annotations()">Print Annotations (to console)</button>
 </div>
 
 <p style="width: 960px; border-top: 1px solid #606060; padding-top: 10px;">Annotation Help:</p>
