@@ -132,20 +132,34 @@ class BBox2D {
 	}
 }
 
-// An Annotation stores the bounding box of the object and the extreme
-// points used to create the bounding box (if this annotation was created from
-// extreme clicking).  We want to keep the extreme points provided by the labeler
-// since they contain additional information about the object's silhouette that
-// would be lost if we just store its bounding box.
-//
-// HACK(kayvonf): the type of annotation is derived from the length of the extreme_points array.
-// if the number of points is zero, then its a regular two-point bbox.  If the number of points
-// is one, then the annotation represents a point annotation.  If the number of points is four,
-// then the annotation represents a bbox created via extreme clicking, so we want to hold onto 
-// all the points.  
 class Annotation {
-	constructor(bbox, extreme_points) {
-		this.bbox = bbox;
+	static get ANNOTATION_MODE_POINT() { return 0; }
+	static get ANNOTATION_MODE_TWO_POINTS_BBOX() { return 1; }
+	static get ANNOTATION_MODE_EXTREME_POINTS_BBOX() { return 2; }
+	constructor(type) {
+		this.type = type;
+	}
+}
+
+class PointAnnotation extends Annotation {
+	constructor(pt) {
+		super(Annotation.ANNOTATION_MODE_POINT);
+		this.pt = pt;
+	}
+}
+
+class TwoPointBoxAnnotation extends Annotation {
+	constructor(corner_pts) {
+		super(Annotation.ANNOTATION_MODE_TWO_POINTS_BBOX);
+		this.bbox = BBox2D.two_points_to_bbox(corner_pts);
+	}
+}
+
+
+class ExtremeBoxAnnnotation extends Annotation {
+	constructor(extreme_points) {
+		super(Annotation.ANNOTATION_MODE_EXTREME_POINTS_BBOX);
+		this.bbox = BBox2D.extreme_points_to_bbox(extreme_points);
 		this.extreme_points = extreme_points;
 	}
 }
@@ -168,10 +182,6 @@ class Frame {
 
 class ImageLabeler {
 
-	static get ANNOTATION_MODE_POINT() { return 0; }
-	static get ANNOTATION_MODE_TWO_POINTS_BBOX() { return 1; }
-	static get ANNOTATION_MODE_EXTREME_POINTS_BBOX() { return 2; }
-
 	constructor() {
 
 		this.main_canvas_el = null;
@@ -187,7 +197,7 @@ class ImageLabeler {
 		this.frames = [];
 
 		// annotation state
-		this.annotation_mode = ImageLabeler.ANNOTATION_MODE_EXTREME_POINTS_BBOX;
+		this.annotation_mode = Annotation.ANNOTATION_MODE_EXTREME_POINTS_BBOX;
 		this.inProgressPoints = [];
 
 		// audio
@@ -270,15 +280,15 @@ class ImageLabeler {
 	}
 
 	is_annotation_mode_point() {
-		return this.annotation_mode == ImageLabeler.ANNOTATION_MODE_POINT;
+		return this.annotation_mode == Annotation.ANNOTATION_MODE_POINT;
 	}
 
 	is_annotation_mode_two_point_bbox() {
-		return this.annotation_mode == ImageLabeler.ANNOTATION_MODE_TWO_POINTS_BBOX;
+		return this.annotation_mode == Annotation.ANNOTATION_MODE_TWO_POINTS_BBOX;
 	}
 
 	is_annotation_mode_extreme_points_bbox() {
-		return this.annotation_mode == ImageLabeler.ANNOTATION_MODE_EXTREME_POINTS_BBOX;
+		return this.annotation_mode == Annotation.ANNOTATION_MODE_EXTREME_POINTS_BBOX;
 	}
 
 	// returns the index of the annotation that is the "selected annotation" given
@@ -297,10 +307,22 @@ class ImageLabeler {
 		// select the smallest box that the cursor is in
 		var smallest_area = Number.MAX_VALUE;
 		for (var i=0; i<cur_frame.data.annotations.length; i++) {
-			if (cur_frame.data.annotations[i].bbox.inside(image_cursor_pt.x, image_cursor_pt.y) &&
-				cur_frame.data.annotations[i].bbox.area < smallest_area) {
-				selected = i;
-				smallest_area = cur_frame.data.annotations[i].bbox.area;
+			
+			if (cur_frame.data.annotations[i].type == Annotation.ANNOTATION_MODE_POINT) {
+
+				if (image_cursor_pt.x == cur_frame.data.annotations[i].x &&
+					image_cursor_pt.y == cur_frame.data.annotations[i].y) {
+					selected = i;
+					smallest_area = 0.0;
+				}
+
+			} else {
+
+				if (cur_frame.data.annotations[i].bbox.inside(image_cursor_pt.x, image_cursor_pt.y) &&
+					cur_frame.data.annotations[i].bbox.area < smallest_area) {
+					selected = i;
+					smallest_area = cur_frame.data.annotations[i].bbox.area;
+				}
 			}
 		}
 
@@ -499,17 +521,11 @@ class ImageLabeler {
 			var obj = cur_frame.data.annotations[obj_id];
 			var selectedObj = (selected == obj_id);
 
-			// transform to canvas space
-			var canvas_min = this.image_to_canvas(obj.bbox.bmin);
-			var canvas_max = this.image_to_canvas(obj.bbox.bmax);
-			var canvas_width = canvas_max.x - canvas_min.x;
-			var canvas_height = canvas_max.y - canvas_min.y; 
-
 			// draw a point annotation
-			if (obj.extreme_points.length == 1) {
+			if (obj.type == Annotation.ANNOTATION_MODE_POINT) {
 
 				var full_circle_angle = 2 * Math.PI;
-				var canvas_pt = this.image_to_canvas(obj.extreme_points[0]);
+				var canvas_pt = this.image_to_canvas(obj.pt);
 
 				if (selectedObj) {
 					ctx.fillStyle = this.color_selected_point_fill;
@@ -520,7 +536,15 @@ class ImageLabeler {
   				ctx.arc(canvas_pt.x, canvas_pt.y, this.extreme_point_radius, 0, full_circle_angle, false);
 		        ctx.fill();
 
-			} else {
+		    // draw bounding box annotation
+			} else if (obj.type == Annotation.ANNOTATION_MODE_TWO_POINTS_BBOX ||
+	   				   obj.type == Annotation.ANNOTATION_MODE_EXTREME_POINTS_BBOX)  {
+
+				// transform to canvas space
+				var canvas_min = this.image_to_canvas(obj.bbox.bmin);
+				var canvas_max = this.image_to_canvas(obj.bbox.bmax);
+				var canvas_width = canvas_max.x - canvas_min.x;
+				var canvas_height = canvas_max.y - canvas_min.y; 
 
 				// highlight the selected box
 				if (selectedObj) {
@@ -536,7 +560,7 @@ class ImageLabeler {
 				ctx.strokeRect(canvas_min.x, canvas_min.y, canvas_width, canvas_height);
 
 				// draw dots indicating all the extreme points (if there are extreme points)
-				if (this.show_extreme_points && obj.extreme_points.length == 4)  {
+				if (this.show_extreme_points && obj.type == Annotation.ANNOTATION_MODE_EXTREME_POINTS_BBOX)  {
 					var full_circle_angle = 2 * Math.PI;
 					ctx.fillStyle = this.color_extreme_point_fill;
 					for (var i=0; i<4; i++) {
@@ -648,12 +672,10 @@ class ImageLabeler {
 				return;
 			}
 
-			var newBBox = BBox2D.extreme_points_to_bbox(this.inProgressPoints);
-			var newAnnotation = new Annotation(newBBox, this.inProgressPoints);
-
+			var newAnnotation = new ExtremeBoxAnnnotation(this.inProgressPoints);
 			cur_frame.data.annotations.push(newAnnotation);
 
-			console.log("KLabeler: New box: x=[" + newBBox.bmin.x + ", " + newBBox.bmax.x + "], y=[" + newBBox.bmin.y + ", " + newBBox.bmax.y + "]");
+			console.log("KLabeler: New box: x=[" + newAnnotation.bbox.bmin.x + ", " + newAnnotation.bbox.bmax.x + "], y=[" + newAnnotation.bbox.bmin.y + ", " + newAnnotation.bbox.bmax.y + "]");
 
 			this.clear_in_progress_points();
 
@@ -668,21 +690,19 @@ class ImageLabeler {
 				return;
 			}
 
-			var newBBox = BBox2D.two_points_to_bbox(this.inProgressPoints);
-			var newAnnotation = new Annotation(newBBox, []);
+			var newAnnotation = new TwoPointBoxAnnotation(this.inProgressPoints);
 			cur_frame.data.annotations.push(newAnnotation);
 
-			console.log("KLabeler: New box: x=[" + newBBox.bmin.x + ", " + newBBox.bmax.y + "], y=[" + newBBox.bmin.y + ", " + newBBox.bmax.y + "]");
+			console.log("KLabeler: New box: x=[" + newAnnotation.bbox.bmin.x + ", " + newAnnotation.bbox.bmax.y + "], y=[" + newAnnotation.bbox.bmin.y + ", " + newAnnotation.bbox.bmax.y + "]");
 
 			this.clear_in_progress_points();
 
 		} else if (this.is_annotation_mode_point()) {
 
-			var newBBox = new BBox2D(this.inProgressPoints[0].x, this.inProgressPoints[0].y, 0.0, 0.0);
-			var newAnnotation = new Annotation(newBBox, this.inProgressPoints);
+			var newAnnotation = new PointAnnotation(this.inProgressPoints[0]);
 			cur_frame.data.annotations.push(newAnnotation);
 
-			console.log("KLabeler: New point: (" + newBBox.bmin.x + ", " + newBBox.bmin.y + ")");
+			console.log("KLabeler: New point: (" + newAnnotation.pt.x + ", " + newAnnotation.pt.y + ")");
 
 			this.clear_in_progress_points();
 		}

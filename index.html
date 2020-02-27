@@ -57,14 +57,14 @@
 		
 		labeler.load_image_stack(image_data);
 
-		labeler.set_annotation_mode(ImageLabeler.ANNOTATION_MODE_EXTREME_POINTS_BBOX);
+		labeler.set_annotation_mode(Annotation.ANNOTATION_MODE_EXTREME_POINTS_BBOX);
 		
 		var button = document.getElementById("toggle_pt_viz_button");
 		button.toggle_status = true;
 		labeler.set_extreme_points_viz(button.toggle_status);
 
 		button = document.getElementById("toggle_sound_button");
-		button.toggle_status = true;
+		button.toggle_status = false;
 		labeler.set_play_audio(button.toggle_status);
 
 		button = document.getElementById("toggle_letterbox_button");
@@ -133,11 +133,11 @@
 	function handle_mode_change() {
 		var select = document.getElementById("select_annotation_mode");
 		if (select.value.localeCompare("box_extreme_points") == 0) {
-			labeler.set_annotation_mode(ImageLabeler.ANNOTATION_MODE_EXTREME_POINTS_BBOX);
+			labeler.set_annotation_mode(Annotation.ANNOTATION_MODE_EXTREME_POINTS_BBOX);
 		} else if (select.value.localeCompare("box_two_points") == 0) {
-			labeler.set_annotation_mode(ImageLabeler.ANNOTATION_MODE_TWO_POINTS_BBOX);
+			labeler.set_annotation_mode(Annotation.ANNOTATION_MODE_TWO_POINTS_BBOX);
 		} else if (select.value.localeCompare("point") == 0) {
-			labeler.set_annotation_mode(ImageLabeler.ANNOTATION_MODE_POINT);
+			labeler.set_annotation_mode(Annotation.ANNOTATION_MODE_POINT);
 		}
 	}
 
