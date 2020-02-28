@@ -82,7 +82,7 @@ class ImageLabeler {
 
 		// state for UI related to zooming
 		this.zoom_key_down = false;
-		this.zoom_corner_pts = [];
+		this.zoom_corner_points = [];
 
 		// this structure holds the annotation data
 		this.current_frame_index = 0;
@@ -234,8 +234,8 @@ class ImageLabeler {
 		this.in_progress_points = [];
 	}
 
-	clear_zoom_corner_pts() {
-		this.zoom_corner_pts = [];
+	clear_zoom_corner_points() {
+		this.zoom_corner_points = [];
 	}
 
 	delete_annotation() {
@@ -400,13 +400,13 @@ class ImageLabeler {
 
 	draw_inprogress_zoom_bbox(ctx, canvas_zoom_corner_points) {
 
-		console.log("(" + canvas_zoom_corner_points[0].x + ", " + canvas_zoom_corner_points[0].y + "), mouse x=" + this.cursorx + ", y=" + this.cursory);
-
 		var pts = [];
 		pts.push(canvas_zoom_corner_points[0]);
 		pts.push(new Point2D(this.cursorx, this.cursory));
 
 		var box = BBox2D.two_points_to_bbox(pts);
+
+		//console.log("Drawing zoom box: " + box.to_string())
 
 		ctx.fillStyle = this.color_zoom_box_fill;
 		ctx.fillRect(box.bmin.x, box.bmin.y, box.width, box.height);
@@ -565,12 +565,12 @@ class ImageLabeler {
 		// draw zoom box UI
 		//
 
-		if (this.zoom_corner_pts.length > 0) {
+		if (this.zoom_corner_points.length > 0) {
 
 			// convert image-space points to canvas space for drawing on screen
 			var canvas_zoom_corner_points = [];
-			for (var i=0; i<this.zoom_corner_pts.length; i++)
-				canvas_zoom_corner_points[i] = this.image_to_canvas(this.zoom_corner_pts[i]);
+			for (var i=0; i<this.zoom_corner_points.length; i++)
+				canvas_zoom_corner_points[i] = this.image_to_canvas(this.zoom_corner_points[i]);
 
 			this.draw_inprogress_zoom_bbox(ctx, canvas_zoom_corner_points);
 		}
@@ -579,7 +579,6 @@ class ImageLabeler {
 
 	handle_image_load(image_index) {
 		//console.log("KLabeler: Image " + image_index + " loaded.");
-
 		this.frames[image_index].image_load_complete = true;
 		this.render();
 	}
@@ -600,7 +599,7 @@ class ImageLabeler {
 
 		// NOTE(kayvonf):decision made to not clear at this time since mouse can
 		// often leave the canvas as a result of user motion just to find the cursor.
-		//this.clear_zoom_corner_pts();
+		//this.clear_zoom_corner_points();
 		//this.clear_in_progress_points();
 
 		this.render();
@@ -620,7 +619,7 @@ class ImageLabeler {
 		} else if (event.keyCode == 27) {  // ESC key
 
 			this.clear_in_progress_points();
-			this.clear_zoom_corner_pts();
+			this.clear_zoom_corner_points();
 			this.render();
 
 		} else if (event.keyCode == 82) {  // 'r' key: reset zoom
@@ -628,8 +627,11 @@ class ImageLabeler {
 			this.render();
 
 		} else if (event.keyCode == 90) {  // 'z' key 
-			this.zoom_key_down = true;
-			this.clear_in_progress_points();
+			if (!this.zoom_key_down) {
+				this.zoom_key_down = true;
+				this.clear_zoom_corner_points();
+				this.clear_in_progress_points();
+			}
 			this.render();
 		}
 	}
@@ -651,7 +653,7 @@ class ImageLabeler {
 
 		} else if (event.keyCode == 90) {   // 'z' key (zoom mode)
 			this.zoom_key_down = false;
-			this.clear_zoom_corner_pts();
+			this.clear_zoom_corner_points();
 		}
 
 		this.render();
@@ -666,24 +668,26 @@ class ImageLabeler {
 			return;
 
 		this.set_canvas_cursor_position(event.offsetX, event.offsetY);
-		var image_pt = this.canvas_to_image(new Point2D(this.cursorx, this.cursory));
+		var image_cursor_pt = this.canvas_to_image(new Point2D(this.cursorx, this.cursory));
 
 		// if the user is holding down the "zoom mode key", treat the click as specifying a
 		// zoom bounding box, not as defining an annotation.
 		if (this.zoom_key_down) {
-			this.zoom_corner_pts.push(image_pt);
 
-			if (this.zoom_corner_pts.length == 2) {
-				this.visible_image_region = BBox2D.two_points_to_bbox(this.zoom_corner_pts);
-				this.clear_zoom_corner_pts(); 
+			this.zoom_corner_points.push(image_cursor_pt);
+
+			if (this.zoom_corner_points.length == 2) {
+				this.visible_image_region = BBox2D.two_points_to_bbox(this.zoom_corner_points);
+				this.clear_zoom_corner_points(); 
+				//console.log("Set visible region: (" + this.visible_image_region.bmin.x + ", " + this.visible_image_region.bmin.y + "), w=" + this.visible_image_region.width + ", h=" + this.visible_image_region.height);
 			}
 
 			this.render();
 			return;
 		}
 
-		this.in_progress_points.push(image_pt);		
-		console.log("KLabeler: Click at (" + this.cursorx + ", " + this.cursory + "), image space=(" + image_pt.x + ", " + image_pt.y + "), point " + this.in_progress_points.length);
+		this.in_progress_points.push(image_cursor_pt);		
+		console.log("KLabeler: Click at (" + this.cursorx + ", " + this.cursory + "), image space=(" + image_cursor_pt.x + ", " + image_cursor_pt.y + "), point " + this.in_progress_points.length);
 
 		// this click completes a new per-frame annotation
 		if (this.is_annotation_mode_per_frame()) {
@@ -756,14 +760,14 @@ class ImageLabeler {
 
 		cur_frame.data.annotations = [];
 		this.clear_in_progress_points();
-		this.clear_zoom_corner_pts();
+		this.clear_zoom_corner_points();
 		this.render();
 	}
 
 	set_annotation_mode(mode) {
 		this.annotation_mode = mode;
 		this.clear_in_progress_points();
-		this.clear_zoom_corner_pts();
+		this.clear_zoom_corner_points();
 		this.render();
 	}
 
@@ -779,7 +783,7 @@ class ImageLabeler {
 	set_letterbox(toggle) {
 		this.letterbox_image = toggle;
 		this.clear_in_progress_points();
-		this.clear_zoom_corner_pts();
+		this.clear_zoom_corner_points();
 		this.render();
 	}
 
@@ -794,7 +798,7 @@ class ImageLabeler {
 	set_current_frame_num(frame_num) {
 		this.current_frame_index = frame_num;
 		this.clear_in_progress_points();
-		this.clear_zoom_corner_pts();
+		this.clear_zoom_corner_points();
 		this.render();
 		console.log("KLabeler: set current frame num to " + this.current_frame_index);
 	}
@@ -825,7 +829,7 @@ class ImageLabeler {
 		// reset the viewer sequence
 		this.current_frame_index = 0;
 		this.clear_in_progress_points();
-		this.clear_zoom_corner_pts();
+		this.clear_zoom_corner_points();
 		this.visible_image_region = new BBox2D(0.0, 0.0, 1.0, 1.0);
 	}
 

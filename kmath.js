@@ -47,7 +47,7 @@ class BBox2D {
 	// Note make this fix may impact the ability to sucessfully select points.  (Which is
 	// why it was postponed.)
 	is_empty() {
-		return (this.bmin.x > this.bmax.y || this.bmin.y > this.bmax.y);
+		return (this.bmin.x > this.bmax.x || this.bmin.y > this.bmax.y);
 	}
 
 	// returns true if the point (x,y) is inside the bounding box.
@@ -77,6 +77,10 @@ class BBox2D {
 		var maxy = Math.min(this.bmax.y, clip_bbox.bmax.y);
 		return new BBox2D(minx, miny, maxx-minx, maxy-miny);
 	}
+
+	to_string() {
+		return "min=(" + this.bmin.x + ", " + this.bmin.y + "), max=(" + this.bmax.x + ", " + this.bmax.y + "), w=" + this.width + ", h=" + this.height + ", e=" + this.is_empty();
+	}	
 
 	// Converts an array of four extreme points to a bbox
 	// NOTE(kayvonf): This code assumes that the extreme points are provided
