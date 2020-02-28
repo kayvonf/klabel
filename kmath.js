@@ -17,41 +17,50 @@ class BBox2D {
 
 	// return width of the box
 	get width() {
-		return this.bmax.x - this.bmin.x;
+		if (this.is_empty())
+			return 0.0;
+		else
+			return this.bmax.x - this.bmin.x;
 	}
 
 	// return height of the box
 	get height() {
-		return this.bmax.y - this.bmin.y;
+		if (this.is_empty())
+			return 0.0;
+		else
+			return this.bmax.y - this.bmin.y;
 	}
 
 	// return area of bounding box
 	get area() {
-		return (this.bmax.x - this.bmin.x) * (this.bmax.y - this.bmin.y);
-	}
-
-	set(startx, starty, width, height) {
-		this.bmin.x = startx;
-		this.bmin.y = starty;
-		this.bmax.x = this.bmin.x + width;
-		this.bmax.y = this.bmin.y + height;
-	}
-
-	isEmpty() {
-		return (this.bmin.x >= this.bmax.y || this.bmin.y >= this.bmax.y);
-	}
-
-	// returns true if the point (x,y) is inside the bounding box.  Edges of the box
-	// are treated as part of the box. 
-	inside(x, y) {
-		if (x >= this.bmin.x && x <= this.bmax.x &&
-			y >= this.bmin.y && y <= this.bmax.y)
-			return true;
+		if (this.is_empty()) 
+			return 0.0;
 		else
-			return false;
+			return (this.bmax.x - this.bmin.x) * (this.bmax.y - this.bmin.y);
 	}
 
-	// create a new bbox that is a scaled version of this one. scaling given by (sx,sy)
+	// returns true if the bounding box contains zero area
+	// 
+	// FIXME(kayvonf): currently defining the bbox as *containing* both the top/left and
+	// the bottom/right edge. This is unconventional, revist this later.  I'd prefer to
+	// include the top/left (min) edges, and not include the bottom/right edges. 
+	// Note make this fix may impact the ability to sucessfully select points.  (Which is
+	// why it was postponed.)
+	is_empty() {
+		return (this.bmin.x > this.bmax.y || this.bmin.y > this.bmax.y);
+	}
+
+	// returns true if the point (x,y) is inside the bounding box.
+	// 
+	// FIXME(kayvonf): currently defining the bbox as *containing* the
+	// both the top/left and bottom/right edges. This is unconventional,
+	// revist this later.
+	inside(pt) {
+		return (pt.x >= this.bmin.x && pt.x <= this.bmax.x &&
+   			    pt.y >= this.bmin.y && pt.y <= this.bmax.y);
+	}
+
+	// Returns a new bbox that is a scaled version of this one. scaling given by (sx,sy)
 	scale(sx, sy) {
 		var minx = this.bmin.x * sx;
 		var miny = this.bmin.y * sy;
@@ -60,7 +69,18 @@ class BBox2D {
 		return new BBox2D(minx, miny, maxx-minx, maxy-miny)
 	}
 
-	// converts an array of four extreme points to a bbox
+	// Returns a new bbox that is this bbox intersected with the provided bbox
+	intersect(clip_bbox) {
+		var minx = Math.max(this.bmin.x, clip_bbox.bmin.x);
+		var miny = Math.max(this.bmin.y, clip_bbox.bmin.y);
+		var maxx = Math.min(this.bmax.x, clip_bbox.bmax.x);
+		var maxy = Math.min(this.bmax.y, clip_bbox.bmax.y);
+		return new BBox2D(minx, miny, maxx-minx, maxy-miny);
+	}
+
+	// Converts an array of four extreme points to a bbox
+	// NOTE(kayvonf): This code assumes that the extreme points are provided
+	// in a canonical (clockwise order beginning with the leftmost point)
 	static extreme_points_to_bbox(pts) {
 
 		// pts[0] = left extreme
@@ -77,8 +97,9 @@ class BBox2D {
 		return b;
 	}
 
-	// converts an array of two points to a bbox.  The code makes no assumptions about
-	// which point in the array is which corner of the bbox. 
+	// Converts an array of two points to a bbox.  The code makes no
+	// assumptions about which point in the array is which corner of
+	// the bbox (it figures it out) 
 	static two_points_to_bbox(pts) {
 
 		var startx = Math.min(pts[0].x, pts[1].x);
@@ -94,7 +115,7 @@ class BBox2D {
 	//
 	// To be valid, the first point should be the leftmost point, the second point
 	// should be the uppermost one, the third point should be the rightmost,
-	// and the fourth point should be bottommost.
+	// and the fourth point should be bottommost. 
 	static validate_extreme_points(pts) {
 
 		if (pts[0].x > pts[1].x ||

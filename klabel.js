@@ -219,7 +219,7 @@ class ImageLabeler {
 			} else if (cur_frame.data.annotations[i].type == Annotation.ANNOTATION_MODE_TWO_POINTS_BBOX ||
 					   cur_frame.data.annotations[i].type == Annotation.ANNOTATION_MODE_EXTREME_POINTS_BBOX) {
 
-				if (cur_frame.data.annotations[i].bbox.inside(image_cursor_pt.x, image_cursor_pt.y) &&
+				if (cur_frame.data.annotations[i].bbox.inside(image_cursor_pt) &&
 					cur_frame.data.annotations[i].bbox.area < smallest_area) {
 					selected = i;
 					smallest_area = cur_frame.data.annotations[i].bbox.area;
@@ -341,7 +341,7 @@ class ImageLabeler {
 
 	draw_inprogress_extreme_points_bbox(ctx, canvas_in_progress_points) {
 
-		// draw the points we've locked down
+		// draw lines between the points we've locked down
 		ctx.beginPath();
 		ctx.moveTo(canvas_in_progress_points[0].x, canvas_in_progress_points[0].y);
 		for (var i=1; i<canvas_in_progress_points.length; i++) {
@@ -361,7 +361,7 @@ class ImageLabeler {
 			ctx.lineTo(canvas_in_progress_points[i].x, canvas_in_progress_points[i].y);
 		}
 
-		// now draw the tentative point
+		// now draw lines to the tentative point
 		if (this.is_hovering()) {
 			if (canvas_in_progress_points.length == 1) {
 				ctx.lineTo(canvas_in_progress_points[0].x, this.cursory);		
@@ -378,7 +378,7 @@ class ImageLabeler {
 		}
 		ctx.stroke();
 
-		// draw dots at all the extreme points
+		// draw dots at all the extreme points that have been specified so far
 		var full_circle_angle = 2 * Math.PI;
 		ctx.fillStyle = this.color_extreme_point_fill;
 		for (var i=0; i<canvas_in_progress_points.length; i++) {
@@ -400,7 +400,7 @@ class ImageLabeler {
 
 	draw_inprogress_zoom_bbox(ctx, canvas_zoom_corner_points) {
 
-		console.log("x=" + this.cursorx + ", y=" + this.cursory);
+		console.log("(" + canvas_zoom_corner_points[0].x + ", " + canvas_zoom_corner_points[0].y + "), mouse x=" + this.cursorx + ", y=" + this.cursory);
 
 		var pts = [];
 		pts.push(canvas_zoom_corner_points[0]);
@@ -473,6 +473,10 @@ class ImageLabeler {
 			// draw a point annotation
 			if (ann.type == Annotation.ANNOTATION_MODE_POINT) {
 
+				// do not render points that lie outside the visible region (when zoomed)
+				if (!this.visible_image_region.inside(ann.pt))
+					continue;
+
 				var full_circle_angle = 2 * Math.PI;
 				var canvas_pt = this.image_to_canvas(ann.pt);
 
@@ -489,9 +493,12 @@ class ImageLabeler {
 			} else if (ann.type == Annotation.ANNOTATION_MODE_TWO_POINTS_BBOX ||
 	   				   ann.type == Annotation.ANNOTATION_MODE_EXTREME_POINTS_BBOX)  {
 
+				// clip the box to the visible region of the image (if zoomed)
+				var visible_ann_box = ann.bbox.intersect(this.visible_image_region);
+
 				// transform to canvas space
-				var canvas_min = this.image_to_canvas(ann.bbox.bmin);
-				var canvas_max = this.image_to_canvas(ann.bbox.bmax);
+				var canvas_min = this.image_to_canvas(visible_ann_box.bmin);
+				var canvas_max = this.image_to_canvas(visible_ann_box.bmax);
 				var canvas_width = canvas_max.x - canvas_min.x;
 				var canvas_height = canvas_max.y - canvas_min.y; 
 
@@ -513,6 +520,12 @@ class ImageLabeler {
 					var full_circle_angle = 2 * Math.PI;
 					ctx.fillStyle = this.color_extreme_point_fill;
 					for (var i=0; i<4; i++) {
+
+						// do not render extreme points that lie outside the visible region (when zoomed)
+						if (!this.visible_image_region.inside(ann.extreme_points[i])) {
+							continue;
+						}
+
 						var canvas_pt = this.image_to_canvas(ann.extreme_points[i]);
 						ctx.beginPath();
 	      				ctx.arc(canvas_pt.x, canvas_pt.y, this.extreme_point_radius, 0, full_circle_angle, false);
@@ -594,7 +607,7 @@ class ImageLabeler {
 	}
 
 	handle_keydown = event => {
-		console.log("KeyDown: " + event.keyCode);
+		//console.log("KeyDown: " + event.keyCode);
 
 		if (event.keyCode == 37) {   // left arrow
 			if (this.current_frame_index > 0)
@@ -616,6 +629,7 @@ class ImageLabeler {
 
 		} else if (event.keyCode == 90) {  // 'z' key 
 			this.zoom_key_down = true;
+			this.clear_in_progress_points();
 			this.render();
 		}
 	}
