@@ -129,6 +129,11 @@ class ImageLabeler {
 		return this.frames[this.current_frame_index];
 	}
 
+	clamp_to_visible_region(pt) {
+		return new Point2D(clamp(pt.x, this.visible_image_region.bmin.x, this.visible_image_region.bmax.x),
+						   clamp(pt.y, this.visible_image_region.bmin.y, this.visible_image_region.bmax.y));
+	}
+
 	// convert point in canvas pixel coordinates to normalized [0,1]^2 image space coordinates
 	canvas_to_image(pt) {
 
@@ -339,7 +344,7 @@ class ImageLabeler {
 		return new BBox2D(display_startx, display_starty, display_width, display_height);
 	}
 
-	draw_inprogress_extreme_points_bbox(ctx, canvas_in_progress_points) {
+	draw_inprogress_extreme_points_bbox(ctx, canvas_in_progress_points, canvas_cursor_pt) {
 
 		// draw lines between the points we've locked down
 		ctx.beginPath();
@@ -364,15 +369,15 @@ class ImageLabeler {
 		// now draw lines to the tentative point
 		if (this.is_hovering()) {
 			if (canvas_in_progress_points.length == 1) {
-				ctx.lineTo(canvas_in_progress_points[0].x, this.cursory);		
-				ctx.lineTo(this.cursorx, this.cursory);
+				ctx.lineTo(canvas_in_progress_points[0].x, canvas_cursor_pt.y);		
+				ctx.lineTo(canvas_cursor_pt.x, canvas_cursor_pt.y);
 			} else if (canvas_in_progress_points.length == 2) {
-				ctx.lineTo(this.cursorx, canvas_in_progress_points[1].y);
-				ctx.lineTo(this.cursorx, this.cursory);
+				ctx.lineTo(canvas_cursor_pt.x, canvas_in_progress_points[1].y);
+				ctx.lineTo(canvas_cursor_pt.x, canvas_cursor_pt.y);
 			} else if (canvas_in_progress_points.length == 3) {
-				ctx.lineTo(canvas_in_progress_points[2].x, this.cursory);
+				ctx.lineTo(canvas_in_progress_points[2].x, canvas_cursor_pt.y);
 				// extrapolation of rest of box
-				ctx.lineTo(canvas_in_progress_points[0].x, this.cursory);
+				ctx.lineTo(canvas_in_progress_points[0].x, canvas_cursor_pt.y);
 				ctx.lineTo(canvas_in_progress_points[0].x, canvas_in_progress_points[0].y);
 			}
 		}
@@ -388,21 +393,21 @@ class ImageLabeler {
 		}	
 	}
 
-	draw_inprogress_two_points_bbox(ctx, canvas_in_progress_points) {
+	draw_inprogress_two_points_bbox(ctx, canvas_in_progress_points, canvas_cursor_pt) {
 
 		var pts = [];
 		pts.push(canvas_in_progress_points[0]);
-		pts.push(new Point2D(this.cursorx, this.cursory));
+		pts.push(canvas_cursor_pt);
 
 		var box = BBox2D.two_points_to_bbox(pts);
 		ctx.strokeRect(box.bmin.x, box.bmin.y, box.width, box.height);
 	}
 
-	draw_inprogress_zoom_bbox(ctx, canvas_zoom_corner_points) {
+	draw_inprogress_zoom_bbox(ctx, canvas_zoom_corner_points, canvas_cursor_pt) {
 
 		var pts = [];
 		pts.push(canvas_zoom_corner_points[0]);
-		pts.push(new Point2D(this.cursorx, this.cursory));
+		pts.push(canvas_cursor_pt);
 
 		var box = BBox2D.two_points_to_bbox(pts);
 
@@ -439,6 +444,9 @@ class ImageLabeler {
 				display_box.bmin.x, display_box.bmin.y, display_box.width, display_box.height);
 		}
 
+		var image_cursor_pt = this.clamp_to_visible_region(this.canvas_to_image(new Point2D(this.cursorx, this.cursory)));
+		var canvas_cursor_pt = this.image_to_canvas(image_cursor_pt);
+
 		//
 		// draw guidelines that move with the mouse cursor
 		//
@@ -448,13 +456,13 @@ class ImageLabeler {
 			ctx.strokeStyle = this.color_cursor_lines;
 
 			ctx.beginPath();
-			ctx.moveTo(this.cursorx, 0);
-			ctx.lineTo(this.cursorx, this.main_canvas_el.height);
+			ctx.moveTo(canvas_cursor_pt.x, 0);
+			ctx.lineTo(canvas_cursor_pt.x, this.main_canvas_el.height);
 			ctx.stroke();
 
 			ctx.beginPath();
-			ctx.moveTo(0, this.cursory);
-			ctx.lineTo(this.main_canvas_el.width, this.cursory);
+			ctx.moveTo(0, canvas_cursor_pt.y);
+			ctx.lineTo(this.main_canvas_el.width, canvas_cursor_pt.y);
 			ctx.stroke();
 		}
 
@@ -493,27 +501,32 @@ class ImageLabeler {
 			} else if (ann.type == Annotation.ANNOTATION_MODE_TWO_POINTS_BBOX ||
 	   				   ann.type == Annotation.ANNOTATION_MODE_EXTREME_POINTS_BBOX)  {
 
-				// clip the box to the visible region of the image (if zoomed)
+				// clip the bbox to the visible region of the image (if zoomed)
 				var visible_ann_box = ann.bbox.intersect(this.visible_image_region);
 
-				// transform to canvas space
-				var canvas_min = this.image_to_canvas(visible_ann_box.bmin);
-				var canvas_max = this.image_to_canvas(visible_ann_box.bmax);
-				var canvas_width = canvas_max.x - canvas_min.x;
-				var canvas_height = canvas_max.y - canvas_min.y; 
+				// if the annotation bbox doesn't overlap the visible region,
+				// there's nothing to draw 
+				if (!visible_ann_box.is_empty()) {
 
-				// highlight the selected box
-				if (is_selected) {
-					ctx.lineWidth = 3;
-					ctx.strokeStyle = this.color_selected_box_outline;
-					ctx.fillStyle = this.color_selected_box_fill;
-					ctx.fillRect(canvas_min.x, canvas_min.y, canvas_width, canvas_height);
-				} else {
-					ctx.lineWidth = 2;
-					ctx.strokeStyle = this.color_box_outline;
+					// transform to canvas space
+					var canvas_min = this.image_to_canvas(visible_ann_box.bmin);
+					var canvas_max = this.image_to_canvas(visible_ann_box.bmax);
+					var canvas_width = canvas_max.x - canvas_min.x;
+					var canvas_height = canvas_max.y - canvas_min.y; 
+
+					// highlight the selected box
+					if (is_selected) {
+						ctx.lineWidth = 3;
+						ctx.strokeStyle = this.color_selected_box_outline;
+						ctx.fillStyle = this.color_selected_box_fill;
+						ctx.fillRect(canvas_min.x, canvas_min.y, canvas_width, canvas_height);
+					} else {
+						ctx.lineWidth = 2;
+						ctx.strokeStyle = this.color_box_outline;
+					}
+
+					ctx.strokeRect(canvas_min.x, canvas_min.y, canvas_width, canvas_height);
 				}
-
-				ctx.strokeRect(canvas_min.x, canvas_min.y, canvas_width, canvas_height);
 
 				// if this is a box created from extreme points, draw dots indicating all the extreme points
 				if (this.show_extreme_points && ann.type == Annotation.ANNOTATION_MODE_EXTREME_POINTS_BBOX)  {
@@ -555,9 +568,9 @@ class ImageLabeler {
 			ctx.strokeStyle = this.color_in_progress_box_outline; 
 
 			if (this.is_annotation_mode_extreme_points_bbox()) {
-				this.draw_inprogress_extreme_points_bbox(ctx, canvas_in_progress_points);
+				this.draw_inprogress_extreme_points_bbox(ctx, canvas_in_progress_points, canvas_cursor_pt);
 			} else if (this.is_annotation_mode_two_point_bbox()) {
-				this.draw_inprogress_two_points_bbox(ctx, canvas_in_progress_points);
+				this.draw_inprogress_two_points_bbox(ctx, canvas_in_progress_points, canvas_cursor_pt);
 			}
 		}
 
@@ -572,7 +585,7 @@ class ImageLabeler {
 			for (var i=0; i<this.zoom_corner_points.length; i++)
 				canvas_zoom_corner_points[i] = this.image_to_canvas(this.zoom_corner_points[i]);
 
-			this.draw_inprogress_zoom_bbox(ctx, canvas_zoom_corner_points);
+			this.draw_inprogress_zoom_bbox(ctx, canvas_zoom_corner_points, canvas_cursor_pt);
 		}
 
 	}
@@ -668,7 +681,7 @@ class ImageLabeler {
 			return;
 
 		this.set_canvas_cursor_position(event.offsetX, event.offsetY);
-		var image_cursor_pt = this.canvas_to_image(new Point2D(this.cursorx, this.cursory));
+		var image_cursor_pt = this.clamp_to_visible_region(this.canvas_to_image(new Point2D(this.cursorx, this.cursory)));
 
 		// if the user is holding down the "zoom mode key", treat the click as specifying a
 		// zoom bounding box, not as defining an annotation.
