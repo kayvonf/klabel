@@ -14,6 +14,10 @@
 		color: #d0d0d0;
 	}
 
+	.bold_text {
+		font-weight: bold;
+	}
+
 </style>
 
 <script src="kmath.js"></script>
@@ -174,11 +178,12 @@
 	<button id="get_annotations" type="button" onclick="handle_get_annotations()">Print Annotations (to console)</button>
 </div>
 
-<p style="width: 960px; border-top: 1px solid #606060; padding-top: 10px;">Annotation Help:</p>
+<p style="width: 960px; border-top: 1px solid #606060; padding-top: 10px;">
+<div class="bold_text">Annotation:</div>
 <table cellpadding="0" cellspacing="0" border="0">
 <tr>
 	<td width="175">Extreme points box mode:</td>
-	<td>Click four times to draw a box.  (Use the <a href="https://arxiv.org/abs/1708.02750">extreme clicking</a> technique: leftmost, topmost, rightmost, bottommost)</td>
+	<td>Click four times to draw a box.  (Use the <a href="https://arxiv.org/abs/1708.02750" target="_blank">extreme clicking</a> technique: leftmost, topmost, rightmost, bottommost)</td>
 </tr>
 <tr>
 	<td>Two-point box mode:</td>
@@ -193,9 +198,20 @@
 	<td>Single click anywhere to mark/unmark the frame. (spacebar also works)</td>
 </tr>
 </table>
+<div>Press 'ESC' to abort current box.</div>
 
 <p>
+<div class="bold_text">Selection:</div>	
 <div>Hover over boxes/points to select them. Press DEL to delete the selected item. (Selection picks the smallest area box containing the cursor.)</div>
+</p>
+<p>
+<div class="bold_text">Zooming:</div>
+<div>Hold 'z' and draw a two-point box to zoom the view to that box.</div>
+<div>Press 'r' to reset zoom state (zoom all the way out)</div>
+</p>
+
+<p>
+<div class="bold_text">Image Stack Navigation:</div>
 <div>Left/right arrow keys move from frame to frame in the current batch of frames.</div>
 </p>
 

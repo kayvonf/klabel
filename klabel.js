@@ -4,11 +4,12 @@
 
 /*
 	TODO list:
-	* add support for per-frame (rather than per instance) categorial annotations
-	* UI for zooming (and unzooming)
+	* add support for per-frame categorial annotations (currently only supports binary)
 	* improve selection mechanism for boxes/points
-	* API for returning box/point data to client (including extreme points)
 	* detect invalid extreme points as early as possible (before end of box)
+	* more intuitive handling of zoom view:
+	     -- don't draw annotations that fall outside the view (or clip boxes to view)
+	     -- don't allow creating of annotations outside the current view
 
 	LICENSES OF THINGS I USED:
 	* This is the "click1" sound:
@@ -79,8 +80,9 @@ class ImageLabeler {
 		this.cursorx = Number.MIN_SAFE_INTEGER;
 		this.cursory = Number.MIN_SAFE_INTEGER;
 
-		this.spaceKeyDown = false;
-		this.shiftKeyDown = false;
+		// state for UI related to zooming
+		this.zoom_key_down = false;
+		this.zoom_corner_pts = [];
 
 		// this structure holds the annotation data
 		this.current_frame_index = 0;
@@ -88,7 +90,7 @@ class ImageLabeler {
 
 		// annotation state
 		this.annotation_mode = Annotation.ANNOTATION_MODE_EXTREME_POINTS_BBOX;
-		this.inProgressPoints = [];
+		this.in_progress_points = [];
 
 		// audio
 		this.audio_click_sound = null;
@@ -96,15 +98,17 @@ class ImageLabeler {
 
 		// colors
 		this.color_main_canvas = '#202020';
-		this.color_cursor_lines = 'rgba(0,255,255,0.5)';
-		this.color_in_progress_box_outline = 'rgba(255,255,255,0.75)';
+		this.color_cursor_lines = 'rgba(0, 255, 255, 0.5)';
+		this.color_in_progress_box_outline = 'rgba(255, 255, 255, 0.75)';
 		this.color_box_outline = 'rgba(255,200,0,0.75)';
-		this.color_selected_box_outline = 'rgba(255,200,100,1.0)';
-		this.color_selected_box_fill = 'rgba(255,200,150,0.2)';
+		this.color_selected_box_outline = 'rgba(255, 200, 100, 1.0)';
+		this.color_selected_box_fill = 'rgba(255, 200, 150, 0.2)';
 		this.color_extreme_point_fill = '#ffff00';
 		this.color_point_fill = '#ffff00';
 		this.color_selected_point_fill = '#ff0000';
-		this.color_per_frame_annotation_outline = 'rgba(255,50,50,0.5)';
+		this.color_per_frame_annotation_outline = 'rgba(255, 50, 50, 0.5)';
+		this.color_zoom_box_outline = 'rgba(255, 0, 0, 1.0)';
+		this.color_zoom_box_fill = 'rgba(255, 0, 0, 0.3)';
 
 		// display settings
 		this.visible_image_region = new BBox2D(0.0, 0.0, 1.0, 1.0);
@@ -166,6 +170,7 @@ class ImageLabeler {
 		return new Point2D(display_x, display_y);
 	}
 
+	// true if the mouse is hovering over the canvas
 	is_hovering() {
 		return (this.cursorx >= 0 && this.cursory >= 0);
 	}
@@ -188,7 +193,7 @@ class ImageLabeler {
 
 	// returns the index of the annotation that is the "selected annotation" given
 	// the current mouse position
-	get_selected_object() {
+	get_selected_annotation() {
 
 		var selected = -1;
 
@@ -226,13 +231,17 @@ class ImageLabeler {
 	}
 
 	clear_in_progress_points() {
-		this.inProgressPoints = [];
+		this.in_progress_points = [];
 	}
 
-	delete_box() {
+	clear_zoom_corner_pts() {
+		this.zoom_corner_pts = [];
+	}
+
+	delete_annotation() {
 
 		var cur_frame = this.get_current_frame();
-		var selected = this.get_selected_object();
+		var selected = this.get_selected_annotation();
 
 		if (selected != -1) {
 			cur_frame.data.annotations.splice(selected, 1);
@@ -266,7 +275,7 @@ class ImageLabeler {
 
 		// if there are no in progress points, then this must be the last click needed to
 		// make an annotation play the sound corresponding to a finished annotation. 
-		if (this.inProgressPoints.length == 0) {
+		if (this.in_progress_points.length == 0) {
 
 			// stop other sounds
 			this.audio_click_sound.pause();
@@ -349,6 +358,7 @@ class ImageLabeler {
 				cornery = canvas_in_progress_points[3].y;
 			}
 			ctx.lineTo(cornerx, cornery);
+			ctx.lineTo(canvas_in_progress_points[i].x, canvas_in_progress_points[i].y);
 		}
 
 		// now draw the tentative point
@@ -380,14 +390,30 @@ class ImageLabeler {
 
 	draw_inprogress_two_points_bbox(ctx, canvas_in_progress_points) {
 
-		var pts = []
+		var pts = [];
 		pts.push(canvas_in_progress_points[0]);
 		pts.push(new Point2D(this.cursorx, this.cursory));
 
 		var box = BBox2D.two_points_to_bbox(pts);
-		var w = box.bmax.x - box.bmin.x;
-		var h = box.bmax.y - box.bmin.y;
-		ctx.strokeRect(box.bmin.x, box.bmin.y, w, h);
+		ctx.strokeRect(box.bmin.x, box.bmin.y, box.width, box.height);
+	}
+
+	draw_inprogress_zoom_bbox(ctx, canvas_zoom_corner_points) {
+
+		console.log("x=" + this.cursorx + ", y=" + this.cursory);
+
+		var pts = [];
+		pts.push(canvas_zoom_corner_points[0]);
+		pts.push(new Point2D(this.cursorx, this.cursory));
+
+		var box = BBox2D.two_points_to_bbox(pts);
+
+		ctx.fillStyle = this.color_zoom_box_fill;
+		ctx.fillRect(box.bmin.x, box.bmin.y, box.width, box.height);
+
+		ctx.lineWidth = 2;
+		ctx.strokeStyle = this.color_zoom_box_outline;
+		ctx.strokeRect(box.bmin.x, box.bmin.y, box.width, box.height);
 	}
 
 	render() {
@@ -399,7 +425,9 @@ class ImageLabeler {
 
 		var cur_frame = this.get_current_frame();
 
-		// draw the image to label
+		//
+		// draw the image being labeled
+		//
 
 		if (cur_frame.image_load_complete) {
 
@@ -411,7 +439,9 @@ class ImageLabeler {
 				display_box.bmin.x, display_box.bmin.y, display_box.width, display_box.height);
 		}
 
+		//
 		// draw guidelines that move with the mouse cursor
+		//
 
 		if (this.is_hovering()) {
 			ctx.lineWidth = 1;
@@ -428,22 +458,25 @@ class ImageLabeler {
 			ctx.stroke();
 		}
 
-		// draw existing annotations.  These annotations may be bounding boxes or points 
-		
-		var selected = this.get_selected_object();
+		//
+		// draw existing annotations.  These annotations may be bounding boxes, points,
+		// or an annotation on the whole frame 
+		//
 
-		for (var obj_id=0; obj_id<cur_frame.data.annotations.length; obj_id++) {
+		var selected = this.get_selected_annotation();
 
-			var obj = cur_frame.data.annotations[obj_id];
-			var selectedObj = (selected == obj_id);
+		for (var ann_index=0; ann_index<cur_frame.data.annotations.length; ann_index++) {
+
+			var ann = cur_frame.data.annotations[ann_index];
+			var is_selected = (selected == ann_index);
 
 			// draw a point annotation
-			if (obj.type == Annotation.ANNOTATION_MODE_POINT) {
+			if (ann.type == Annotation.ANNOTATION_MODE_POINT) {
 
 				var full_circle_angle = 2 * Math.PI;
-				var canvas_pt = this.image_to_canvas(obj.pt);
+				var canvas_pt = this.image_to_canvas(ann.pt);
 
-				if (selectedObj) {
+				if (is_selected) {
 					ctx.fillStyle = this.color_selected_point_fill;
 				} else {
 					ctx.fillStyle = this.color_point_fill;						
@@ -453,17 +486,17 @@ class ImageLabeler {
 		        ctx.fill();
 
 		    // draw bounding box annotation
-			} else if (obj.type == Annotation.ANNOTATION_MODE_TWO_POINTS_BBOX ||
-	   				   obj.type == Annotation.ANNOTATION_MODE_EXTREME_POINTS_BBOX)  {
+			} else if (ann.type == Annotation.ANNOTATION_MODE_TWO_POINTS_BBOX ||
+	   				   ann.type == Annotation.ANNOTATION_MODE_EXTREME_POINTS_BBOX)  {
 
 				// transform to canvas space
-				var canvas_min = this.image_to_canvas(obj.bbox.bmin);
-				var canvas_max = this.image_to_canvas(obj.bbox.bmax);
+				var canvas_min = this.image_to_canvas(ann.bbox.bmin);
+				var canvas_max = this.image_to_canvas(ann.bbox.bmax);
 				var canvas_width = canvas_max.x - canvas_min.x;
 				var canvas_height = canvas_max.y - canvas_min.y; 
 
 				// highlight the selected box
-				if (selectedObj) {
+				if (is_selected) {
 					ctx.lineWidth = 3;
 					ctx.strokeStyle = this.color_selected_box_outline;
 					ctx.fillStyle = this.color_selected_box_fill;
@@ -476,17 +509,17 @@ class ImageLabeler {
 				ctx.strokeRect(canvas_min.x, canvas_min.y, canvas_width, canvas_height);
 
 				// if this is a box created from extreme points, draw dots indicating all the extreme points
-				if (this.show_extreme_points && obj.type == Annotation.ANNOTATION_MODE_EXTREME_POINTS_BBOX)  {
+				if (this.show_extreme_points && ann.type == Annotation.ANNOTATION_MODE_EXTREME_POINTS_BBOX)  {
 					var full_circle_angle = 2 * Math.PI;
 					ctx.fillStyle = this.color_extreme_point_fill;
 					for (var i=0; i<4; i++) {
-						var canvas_pt = this.image_to_canvas(obj.extreme_points[i]);
+						var canvas_pt = this.image_to_canvas(ann.extreme_points[i]);
 						ctx.beginPath();
 	      				ctx.arc(canvas_pt.x, canvas_pt.y, this.extreme_point_radius, 0, full_circle_angle, false);
 				        ctx.fill();
 					}
 				}	
-			} else if (obj.type == Annotation.ANNOTATION_MODE_PER_FRAME) {
+			} else if (ann.type == Annotation.ANNOTATION_MODE_PER_FRAME) {
 				// for now, let's just visualize a per-frame annotation as a highlight around the border
 				ctx.lineWidth = 32;
 				ctx.strokeStyle = this.color_per_frame_annotation_outline;
@@ -494,14 +527,16 @@ class ImageLabeler {
 			}
 		}
 
-		// render "in-progress" points (the current partial bounding box)
+		//
+		// draw "in-progress" points (e.g., the current partial bounding box)
+		//
 
-		if (this.inProgressPoints.length > 0) {
+		if (this.in_progress_points.length > 0) {
 
 			// convert image-space points to canvas space for drawing on screen
 			var canvas_in_progress_points = [];
-			for (var i =0; i<this.inProgressPoints.length; i++)
-				canvas_in_progress_points[i] = this.image_to_canvas(this.inProgressPoints[i]);
+			for (var i =0; i<this.in_progress_points.length; i++)
+				canvas_in_progress_points[i] = this.image_to_canvas(this.in_progress_points[i]);
 
 			ctx.lineWidth = 1;
 			ctx.strokeStyle = this.color_in_progress_box_outline; 
@@ -511,6 +546,20 @@ class ImageLabeler {
 			} else if (this.is_annotation_mode_two_point_bbox()) {
 				this.draw_inprogress_two_points_bbox(ctx, canvas_in_progress_points);
 			}
+		}
+
+		//
+		// draw zoom box UI
+		//
+
+		if (this.zoom_corner_pts.length > 0) {
+
+			// convert image-space points to canvas space for drawing on screen
+			var canvas_zoom_corner_points = [];
+			for (var i=0; i<this.zoom_corner_pts.length; i++)
+				canvas_zoom_corner_points[i] = this.image_to_canvas(this.zoom_corner_pts[i]);
+
+			this.draw_inprogress_zoom_bbox(ctx, canvas_zoom_corner_points);
 		}
 
 	}
@@ -535,22 +584,39 @@ class ImageLabeler {
 	handle_canvas_mouseout = event => {
 		this.cursorx = Number.MIN_SAFE_INTEGER;
 		this.cursory = Number.MIN_SAFE_INTEGER;
+
+		// NOTE(kayvonf):decision made to not clear at this time since mouse can
+		// often leave the canvas as a result of user motion just to find the cursor.
+		//this.clear_zoom_corner_pts();
+		//this.clear_in_progress_points();
+
 		this.render();
 	}
 
 	handle_keydown = event => {
-		//console.log("KeyDown: " + event.keyCode);
+		console.log("KeyDown: " + event.keyCode);
 
-		if (event.keyCode == 32) {          // space
-			this.spaceKeyDown = true;
-		} else if (event.keyCode == 16) {   // shift
-			this.shiftKeyDown = true;
-		} else if (event.keyCode == 37) {   // left arrow
+		if (event.keyCode == 37) {   // left arrow
 			if (this.current_frame_index > 0)
 				this.set_current_frame_num(this.current_frame_index-1);
-		} else if (event.keyCode == 39) {   // right arrow
+
+		} else if (event.keyCode == 39) {  // right arrow
 			if (this.current_frame_index < this.frames.length-1)
 				this.set_current_frame_num(this.current_frame_index+1);
+
+		} else if (event.keyCode == 27) {  // ESC key
+
+			this.clear_in_progress_points();
+			this.clear_zoom_corner_pts();
+			this.render();
+
+		} else if (event.keyCode == 82) {  // 'r' key: reset zoom
+			this.visible_image_region = new BBox2D(0.0, 0.0, 1.0, 1.0);
+			this.render();
+
+		} else if (event.keyCode == 90) {  // 'z' key 
+			this.zoom_key_down = true;
+			this.render();
 		}
 	}
 
@@ -558,21 +624,23 @@ class ImageLabeler {
 		//console.log("KeyUp: " + event.keyCode);
 
 		if (event.keyCode == 32) {          // space
-			this.spaceKeyDown = false;
 
 			if (this.is_annotation_mode_per_frame()) {
 				// ignore spacebar keypress if the image hasn't loaded yet
 				var cur_frame = this.get_current_frame();
 				if (cur_frame.image_load_complete)
 					this.toggle_per_frame_annotation();
-				this.render();
 			}
 
-		} else if (event.keyCode == 16) {   // shift
-			this.shiftKeyDown = false;
-		} else if (event.keyCode == 8) {    // delete
-			this.delete_box();
+		} else if (event.keyCode == 8) {    // delete/bksp key
+			this.delete_annotation();
+
+		} else if (event.keyCode == 90) {   // 'z' key (zoom mode)
+			this.zoom_key_down = false;
+			this.clear_zoom_corner_pts();
 		}
+
+		this.render();
 	}
 
 	handle_canvas_click = event => {
@@ -584,10 +652,24 @@ class ImageLabeler {
 			return;
 
 		this.set_canvas_cursor_position(event.offsetX, event.offsetY);
-
 		var image_pt = this.canvas_to_image(new Point2D(this.cursorx, this.cursory));
-		this.inProgressPoints.push(image_pt);		
-		console.log("KLabeler: Click at (" + this.cursorx + ", " + this.cursory + "), image space=(" + image_pt.x + ", " + image_pt.y + "), point " + this.inProgressPoints.length);
+
+		// if the user is holding down the "zoom mode key", treat the click as specifying a
+		// zoom bounding box, not as defining an annotation.
+		if (this.zoom_key_down) {
+			this.zoom_corner_pts.push(image_pt);
+
+			if (this.zoom_corner_pts.length == 2) {
+				this.visible_image_region = BBox2D.two_points_to_bbox(this.zoom_corner_pts);
+				this.clear_zoom_corner_pts(); 
+			}
+
+			this.render();
+			return;
+		}
+
+		this.in_progress_points.push(image_pt);		
+		console.log("KLabeler: Click at (" + this.cursorx + ", " + this.cursory + "), image space=(" + image_pt.x + ", " + image_pt.y + "), point " + this.in_progress_points.length);
 
 		// this click completes a new per-frame annotation
 		if (this.is_annotation_mode_per_frame()) {
@@ -596,49 +678,49 @@ class ImageLabeler {
 			this.clear_in_progress_points();
 
 		// this click completes a new extreme point box annotation
-		} else if (this.is_annotation_mode_extreme_points_bbox() && this.inProgressPoints.length == 4) {
+		} else if (this.is_annotation_mode_extreme_points_bbox() && this.in_progress_points.length == 4) {
 
 			// discard box if this set of four extreme points is not a valid set of extreme points
-			if (!BBox2D.validate_extreme_points(this.inProgressPoints)) {
+			if (!BBox2D.validate_extreme_points(this.in_progress_points)) {
 				console.log("KLabeler: Points clicked are not valid extreme points. Discarding box.");
 				this.clear_in_progress_points();
 				this.render();
 				return;
 			}
 
-			var newAnnotation = new ExtremeBoxAnnnotation(this.inProgressPoints);
-			cur_frame.data.annotations.push(newAnnotation);
+			var new_annotation = new ExtremeBoxAnnnotation(this.in_progress_points);
+			cur_frame.data.annotations.push(new_annotation);
 
-			console.log("KLabeler: New box: x=[" + newAnnotation.bbox.bmin.x + ", " + newAnnotation.bbox.bmax.x + "], y=[" + newAnnotation.bbox.bmin.y + ", " + newAnnotation.bbox.bmax.y + "]");
+			console.log("KLabeler: New box: x=[" + new_annotation.bbox.bmin.x + ", " + new_annotation.bbox.bmax.x + "], y=[" + new_annotation.bbox.bmin.y + ", " + new_annotation.bbox.bmax.y + "]");
 
 			this.clear_in_progress_points();
 
 		// this click completes a new corner point box annotation
-		} else if (this.is_annotation_mode_two_point_bbox() && this.inProgressPoints.length == 2) {
+		} else if (this.is_annotation_mode_two_point_bbox() && this.in_progress_points.length == 2) {
 
 			// validate box by discarding empty boxes.
-			if (this.inProgressPoints[0].x == this.inProgressPoints[1].x &&
-				this.inProgressPoints[0].y == this.inProgressPoints[1].y) {
+			if (this.in_progress_points[0].x == this.in_progress_points[1].x &&
+				this.in_progress_points[0].y == this.in_progress_points[1].y) {
 				alert("Empty bbox. Discarding box.");
 				this.clear_in_progress_points();
 				this.render();
 				return;
 			}
 
-			var newAnnotation = new TwoPointBoxAnnotation(this.inProgressPoints);
-			cur_frame.data.annotations.push(newAnnotation);
+			var new_annotation = new TwoPointBoxAnnotation(this.in_progress_points);
+			cur_frame.data.annotations.push(new_annotation);
 
-			console.log("KLabeler: New box: x=[" + newAnnotation.bbox.bmin.x + ", " + newAnnotation.bbox.bmax.y + "], y=[" + newAnnotation.bbox.bmin.y + ", " + newAnnotation.bbox.bmax.y + "]");
+			console.log("KLabeler: New box: x=[" + new_annotation.bbox.bmin.x + ", " + new_annotation.bbox.bmax.y + "], y=[" + new_annotation.bbox.bmin.y + ", " + new_annotation.bbox.bmax.y + "]");
 
 			this.clear_in_progress_points();
 
 		// this click completes a new point annotation
 		} else if (this.is_annotation_mode_point()) {
 
-			var newAnnotation = new PointAnnotation(this.inProgressPoints[0]);
-			cur_frame.data.annotations.push(newAnnotation);
+			var new_annotation = new PointAnnotation(this.in_progress_points[0]);
+			cur_frame.data.annotations.push(new_annotation);
 
-			console.log("KLabeler: New point: (" + newAnnotation.pt.x + ", " + newAnnotation.pt.y + ")");
+			console.log("KLabeler: New point: (" + new_annotation.pt.x + ", " + new_annotation.pt.y + ")");
 
 			this.clear_in_progress_points();
 		}
@@ -660,12 +742,14 @@ class ImageLabeler {
 
 		cur_frame.data.annotations = [];
 		this.clear_in_progress_points();
+		this.clear_zoom_corner_pts();
 		this.render();
 	}
 
 	set_annotation_mode(mode) {
 		this.annotation_mode = mode;
 		this.clear_in_progress_points();
+		this.clear_zoom_corner_pts();
 		this.render();
 	}
 
@@ -680,6 +764,8 @@ class ImageLabeler {
 
 	set_letterbox(toggle) {
 		this.letterbox_image = toggle;
+		this.clear_in_progress_points();
+		this.clear_zoom_corner_pts();
 		this.render();
 	}
 
@@ -694,6 +780,7 @@ class ImageLabeler {
 	set_current_frame_num(frame_num) {
 		this.current_frame_index = frame_num;
 		this.clear_in_progress_points();
+		this.clear_zoom_corner_pts();
 		this.render();
 		console.log("KLabeler: set current frame num to " + this.current_frame_index);
 	}
@@ -724,6 +811,7 @@ class ImageLabeler {
 		// reset the viewer sequence
 		this.current_frame_index = 0;
 		this.clear_in_progress_points();
+		this.clear_zoom_corner_pts();
 		this.visible_image_region = new BBox2D(0.0, 0.0, 1.0, 1.0);
 	}
 
