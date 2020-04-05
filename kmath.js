@@ -130,17 +130,17 @@ class BBox2D {
 			pts[0].x > pts[2].x ||
 			pts[0].x > pts[3].x)
 			return false;
-		if (pts[1].y > pts[1].y ||
+		if (pts[1].y > pts[0].y ||
 			pts[1].y > pts[2].y ||
 			pts[1].y > pts[3].y)
 			return false;
-		if (pts[2].x < pts[1].x ||
-			pts[2].x < pts[2].x ||
+		if (pts[2].x < pts[0].x ||
+			pts[2].x < pts[1].x ||
 			pts[2].x < pts[3].x)
 			return false;
-		if (pts[3].y < pts[1].y ||
-			pts[3].y < pts[2].y ||
-			pts[3].y < pts[3].y)
+		if (pts[3].y < pts[0].y ||
+			pts[3].y < pts[1].y ||
+			pts[3].y < pts[2].y)
 			return false;
 
 		return true;
