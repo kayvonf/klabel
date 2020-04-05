@@ -77,10 +77,7 @@ class ImageLabeler {
 
 		this.main_canvas_el = null;
 
-    // TODO(cristobal): make the cursor a Point2D
     this.cursor = new Point2D(Number.MIN_SAFE_INTEGER, Number.MIN_SAFE_INTEGER);
-		// this.cursorx = Number.MIN_SAFE_INTEGER;
-		// this.cursory = Number.MIN_SAFE_INTEGER;
 
 		// state for UI related to zooming
 		this.zoom_key_down = false;
@@ -126,8 +123,6 @@ class ImageLabeler {
     this.cursor = new Point2D(
       clamp(x, 0, this.main_canvas_el.width),
       clamp(y, 0, this.main_canvas_el.height))
-		// this.cursorx = clamp(x, 0, this.main_canvas_el.width);
-		// this.cursory = clamp(y, 0, this.main_canvas_el.height);	
 	}
 
 	get_current_frame() {
@@ -191,7 +186,6 @@ class ImageLabeler {
 
 	// true if the mouse is hovering over the canvas
 	is_hovering() {
-		// return (this.cursorx >= 0 && this.cursory >= 0);
 		return (this.cursor.x >= 0 && this.cursor.y >= 0);
 	}
 
@@ -219,7 +213,6 @@ class ImageLabeler {
 		if (!this.is_hovering())
 			return selected;
 
-		// var image_cursor_pt = this.canvas_to_image(new Point2D(this.cursorx, this.cursory));
 		var image_cursor_pt = this.canvas_to_image(this.cursor);
 
 		var cur_frame = this.get_current_frame();
