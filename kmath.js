@@ -7,6 +7,10 @@ class Point2D {
 		this.x = x;
 		this.y = y;
 	}
+
+  to_string() {
+    return `(${this.x}, ${this.y})`;
+  }
 }
 
 class BBox2D {
@@ -79,7 +83,7 @@ class BBox2D {
 	}
 
 	to_string() {
-		return "min=(" + this.bmin.x + ", " + this.bmin.y + "), max=(" + this.bmax.x + ", " + this.bmax.y + "), w=" + this.width + ", h=" + this.height + ", e=" + this.is_empty();
+		return `min=${this.bmin.to_string()}, max=${this.bmax.to_string()}, w=${this.width}, h=${this.height}, e=${this.is_empty()}`;
 	}	
 
 	// Converts an array of four extreme points to a bbox
