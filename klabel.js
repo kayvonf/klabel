@@ -57,8 +57,13 @@ class ExtremeBoxAnnnotation extends Annotation {
 }
 
 class ImageData {
-	constructor(source_url) {
+  // Note: when loading image from server, `source_url` is a
+  // random blob created with `URL.createObjectURL`. Therefore,
+  // we incorporate the `name` field to allow for sorting!
+
+	constructor(source_url, name="") {
 		this.source_url = source_url;
+    this.name = name === "" ? source_url : name;
 		this.annotations = [];
 	}
 }
@@ -838,6 +843,9 @@ class ImageLabeler {
 	load_image_stack(image_dataset) {
 		console.log(`KLabeler: loading set of ${image_dataset.length} images.`);
 
+    // Sort dataset lexicographically by name
+    image_dataset.sort((i, j) => i.name.localeCompare(j.name));
+
 		this.frames = [];
 		var image_index = 0;
 		for (var img of image_dataset) {
@@ -860,8 +868,20 @@ class ImageLabeler {
 	}
 
 	get_annotations() {
-    return this.frames.map(f => f.data);
+    return this.frames.map(f => ({"name": f.data.name, "annotations": f.data.annotations}));
 	}
+
+  save_annotations_to_local_storage() {
+    this.frames.map(f => {
+      localStorage.setItem(f.data.name, JSON.stringify(f.data.annotations));
+    });
+  }
+
+  persist_local_storage() {
+    var d = new Date();
+    var dt = `${d.getFullYear()}_${d.getMonth()}_${d.getDate()}_${d.getHours()}_${d.getMinutes()}_${d.getSeconds()}`;
+    download(localStorage, `klabeler_${dt}.json`);
+  }
 
 	init(main_canvas_el) {
 
