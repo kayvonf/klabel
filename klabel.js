@@ -1,6 +1,7 @@
 
 // this file depends on:
 //   -- kmath.js
+//   -- kutils.js
 
 /*
 	TODO list:
