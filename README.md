@@ -3,10 +3,14 @@
 ## Core
 
 ### `klabel.js`
-Central file that manages annotation and frame state. Must be given images to process by front-end UI.
+Central file that manages annotation and frame state. Must be given images to
+process by front-end UI.
 
 ### `kmath.js`
 Math utils and classes, e.g. `Point2D` and `BBox2D`
+
+### `kutils.js`
+General utils, e.g. downloading a file
 
 ## Examples
 
@@ -14,7 +18,10 @@ Math utils and classes, e.g. `Point2D` and `BBox2D`
 Example of UI which loads in local images from `/files`
 
 ### `vid2player`
-Example which loads in images from a file server. Expects the file system of following structure:
+Example which loads in images from a file server. Allows annotations to be
+saved in localStorage, and persisted to a JSON
+
+Expects the file system of following structure:
 
 ```
 ├── fserve.py
