@@ -184,7 +184,7 @@
             function get_fs() {
                 return fetch(`${server_url}/fs`)
                     .then(validate_response)
-                    .then(r => r.json())
+                    .then(r => r.json());
             }
 
             // Given a path for an image, create a local URL and store in ImageData
@@ -212,7 +212,7 @@
                     .then(filenames => Promise.all(
                         filenames.map(path => fetch_image(`${server_url}/frame/${video}/${point}/${path}`))
                     ))
-                // Sort the file by their original path, then load into labeler
+                // Load into labeler
                     .then(image_dataset => labeler.load_image_stack(image_dataset));
             }
 
@@ -224,7 +224,7 @@
                 // Clear current children
                 select_point.innerHTML = '';
 
-                for (var point of fs[current_video]) {
+                for (var point of fs[current_video].sort()) {
                     var option = document.createElement("option");
                     option.value = point;
                     option.text = point;

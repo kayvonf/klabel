@@ -229,8 +229,10 @@ class ImageLabeler {
 			
 			if (cur_frame.data.annotations[i].type == Annotation.ANNOTATION_MODE_POINT) {
 
-				if (image_cursor_pt.x == cur_frame.data.annotations[i].x &&
-					image_cursor_pt.y == cur_frame.data.annotations[i].y) {
+        var p = cur_frame.data.annotations[i].pt;
+        var d = (image_cursor_pt.x - p.x)**2 + (image_cursor_pt.y - p.y)**2;
+
+        if (d < (0.01)**2) { // 0.01 away
 					selected = i;
 					smallest_area = 0.0;
 				}
@@ -635,13 +637,15 @@ class ImageLabeler {
 
     // Left Arrow: increment position in frames
     if (event.keyCode == 37) {
-			if (this.current_frame_index > 0)
-				this.set_current_frame_num(this.current_frame_index-1);
+      if (this.current_frame_index > 0) {
+        this.set_current_frame_num(this.current_frame_index-1);
+      }
 
     // Right Arrow:  decrement positions in frames
 		} else if (event.keyCode == 39) { 
-			if (this.current_frame_index < this.frames.length-1)
+      if (this.current_frame_index < this.frames.length-1) {
 				this.set_current_frame_num(this.current_frame_index+1);
+      }
 
     // ESC: cancel current action
 		} else if (event.keyCode == 27) {  // ESC key
@@ -830,6 +834,7 @@ class ImageLabeler {
 
 	set_current_frame_num(frame_num) {
 		this.current_frame_index = frame_num;
+    this.load_annotation_from_local_storage();
 		this.clear_in_progress_points();
 		this.clear_zoom_corner_points();
 		this.render();
@@ -862,6 +867,7 @@ class ImageLabeler {
 		// FIXME(kayvonf): extract to helper function
 		// reset the viewer sequence
 		this.current_frame_index = 0;
+    this.load_annotation_from_local_storage();
 		this.clear_in_progress_points();
 		this.clear_zoom_corner_points();
 		this.visible_image_region = new BBox2D(0.0, 0.0, 1.0, 1.0);
@@ -870,6 +876,12 @@ class ImageLabeler {
 	get_annotations() {
     return this.frames.map(f => ({"name": f.data.name, "annotations": f.data.annotations}));
 	}
+  
+  load_annotation_from_local_storage() {
+    var frame = this.get_current_frame();
+    var stored_annotations = localStorage.getItem(frame.data.name);
+    frame.data.annotations = JSON.parse(stored_annotations);
+  }
 
   save_annotations_to_local_storage() {
     this.frames.map(f => {
