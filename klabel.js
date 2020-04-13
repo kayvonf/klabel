@@ -264,10 +264,15 @@ class ImageLabeler {
 		var cur_frame = this.get_current_frame();
 		var selected = this.get_selected_annotation();
 
-		if (selected != -1) {
-			cur_frame.data.annotations.splice(selected, 1);
-			console.log(`KLabeler: Deleted box ${selected}`);
-		}
+    if (selected != -1) {
+      cur_frame.data.annotations.splice(selected, 1);
+
+      if (f.data.annotations.length == 0) {
+        localStorage.removeItem(cur_frame.data.name);
+      }
+
+			console.log(`KLabeler: Deleted ${selected}`);
+     }
 
 		this.render();
 	}
@@ -626,8 +631,8 @@ class ImageLabeler {
 
 		// NOTE(kayvonf):decision made to not clear at this time since mouse can
 		// often leave the canvas as a result of user motion just to find the cursor.
-		//this.clear_zoom_corner_points();
-		//this.clear_in_progress_points();
+		// this.clear_zoom_corner_points();
+		// this.clear_in_progress_points();
 
 		this.render();
 	}
@@ -635,14 +640,14 @@ class ImageLabeler {
   handle_keydown = event => {
 		//console.log("KeyDown: " + event.keyCode);
 
-    // Left Arrow: increment position in frames
-    if (event.keyCode == 37) {
+    // Left Arrow or A: increment position in frames
+    if (event.keyCode == 37 || event.keyCode == 65) {
       if (this.current_frame_index > 0) {
         this.set_current_frame_num(this.current_frame_index-1);
       }
 
-    // Right Arrow:  decrement positions in frames
-		} else if (event.keyCode == 39) { 
+    // Right Arrow or D: decrement positions in frames
+    } else if (event.keyCode == 39 || event.keyCode == 68) { 
       if (this.current_frame_index < this.frames.length-1) {
 				this.set_current_frame_num(this.current_frame_index+1);
       }
@@ -833,6 +838,9 @@ class ImageLabeler {
 	}
 
 	set_current_frame_num(frame_num) {
+    // Save previous annotation
+    this.save_annotation_to_local_storage();
+    // Move forward and reset
 		this.current_frame_index = frame_num;
     this.load_annotation_from_local_storage();
 		this.clear_in_progress_points();
@@ -847,6 +855,14 @@ class ImageLabeler {
 
 	load_image_stack(image_dataset) {
 		console.log(`KLabeler: loading set of ${image_dataset.length} images.`);
+
+    // TODO(cristobal): memory is bogged, this doesn't work...
+    for (var i = 0; i < this.frames.length; i++) {
+      this.frames[i].source_image.remove();
+      this.frames[i].source_image = null;
+      this.frames[i].data = null;
+      this.frames[i] = null;
+    }
 
     // Sort dataset lexicographically by name
     image_dataset.sort((i, j) => i.name.localeCompare(j.name));
@@ -878,14 +894,23 @@ class ImageLabeler {
 	}
   
   load_annotation_from_local_storage() {
-    var frame = this.get_current_frame();
-    var stored_annotations = localStorage.getItem(frame.data.name);
-    frame.data.annotations = JSON.parse(stored_annotations);
+    var f = this.get_current_frame();
+    var stored_annotations = localStorage.getItem(f.data.name);
+    f.data.annotations = JSON.parse(stored_annotations) || [];
+  }
+
+  save_annotation_to_local_storage() {
+    var f = this.get_current_frame();
+    if (f.data.annotations.length > 0) {
+      localStorage.setItem(f.data.name, JSON.stringify(f.data.annotations));
+    }
   }
 
   save_annotations_to_local_storage() {
     this.frames.map(f => {
-      localStorage.setItem(f.data.name, JSON.stringify(f.data.annotations));
+      if (f.data.annotations.length > 0) {
+        localStorage.setItem(f.data.name, JSON.stringify(f.data.annotations));
+      }
     });
   }
 
