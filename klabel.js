@@ -267,7 +267,7 @@ class ImageLabeler {
     if (selected != -1) {
       cur_frame.data.annotations.splice(selected, 1);
 
-      if (f.data.annotations.length == 0) {
+      if (cur_frame.data.annotations.length == 0) {
         localStorage.removeItem(cur_frame.data.name);
       }
 
@@ -689,7 +689,7 @@ class ImageLabeler {
 			}
 
     // Delete/Backspace: delete selected annotation
-		} else if (event.keyCode == 8) {
+		} else if (event.keyCode == 8 || event.keyCode == 81) {
 			this.delete_annotation();
 
     // 'z': Zoom Mode
@@ -930,8 +930,8 @@ class ImageLabeler {
 		this.main_canvas_el.addEventListener("mouseover", this.handle_canvas_mouseover, false);
 		this.main_canvas_el.addEventListener("mouseout", this.handle_canvas_mouseout, false);
 
-		this.audio_click_sound = new Audio("media/click_sound2.mp3");
-		this.audio_box_done_sound = new Audio("media/click_sound3.mp3");
+    this.audio_click_sound = new Audio("../media/click_sound2.mp3");
+    this.audio_box_done_sound = new Audio("../media/click_sound3.mp3");
 
 		// make a dummy frame as a placeholdr until the application provides real data
 		this.frames.push(new Frame(new ImageData));
