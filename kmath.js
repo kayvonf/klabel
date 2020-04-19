@@ -1,6 +1,10 @@
-function clamp(x, min_value, max_value) {
-	return Math.min(max_value, Math.max(min_value, x));
-}
+/*
+ * kmath.js 
+ *
+ * This file includes useful datatypes and functions for basic math operations on
+ * points, boxes, etc.
+ */
+
 
 class Point2D {
 	constructor(x, y) {
@@ -142,3 +146,10 @@ class BBox2D {
 		return true;
 	}
 }
+
+
+function clamp(x, min_value, max_value) {
+	return Math.min(max_value, Math.max(min_value, x));
+}
+
+

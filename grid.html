@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>KGrid</title>
+<style>
+	body {
+		font-family: Helvetica, Arial, sans-seris;
+		font-size: 10pt;
+	}
+
+	body a {
+		color: #d0d0d0;
+	}
+
+	.bold_text {
+		font-weight: bold;
+	}
+
+	.kgrid_image {
+		border: 1px solid #c0c0c0;
+		background-color: #a0a0a0;
+	}
+
+	.kgrid_cell {
+		/* border: 1px solid #ff0000; */
+		padding: 4px;
+	}
+
+	.kgrid_cell_floatprop {
+		float: left;
+	}
+
+</style>
+
+<script src="kmath.js"></script>
+<script src="kgrid.js"></script>
+
+<script>
+	
+	// this is the id of the DOM element that Kgrid should render the grid into
+	var main_div_id = 'grid_target'; 
+	var kgrid = new KGrid;
+
+	function handle_onload() {
+
+		// display options for KGrid
+		var kgrid_opts = new KGridOptions;
+		kgrid_opts.num_panels = 2;
+		kgrid_opts.letterbox_panels = false;
+		kgrid_opts.panel_width = 200;
+		kgrid_opts.panel_height = 200;
+		kgrid_opts.single_cell_per_row = true;
+		
+		// point KGrid at the target DOM element
+		kgrid.init(document.getElementById(main_div_id), kgrid_opts);
+
+		// set the data source for all the "cells in the grid"
+		var cells = [];
+		for (var i=0; i<12; i++) {
+			var str = "Item: " + i;
+			var cell = new KGridCell(["media/jojo_tall.jpg","media/jojo_tall_bw.jpg"], str);
+			cells.push(cell);
+		}
+
+		// this where the DOM gets updated to display the images
+		kgrid.generate_grid(cells);	
+	}
+
+</script>
+</head>
+
+<body onload="handle_onload()">
+
+<div class="bold_text" style="font-size: 14pt;">KGrid Demo</div>
+
+<div id="grid_target" style="width: 900px; border: 1px solid #000000;">
+</div>
+
+
+</body>
+</html>
