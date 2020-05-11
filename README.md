@@ -44,6 +44,9 @@ Expects the file system of following structure:
 | `/frames/{video}/{point}`           | List of files for given point |
 | `/frame/{video}/{point}/{filename}` | Single frame from a point.  |
 
+Install
+1. 'pip3 install flask flask-cors'
+
 Sample server available: `fserve.py`. To run:
 1. Copy `fserve.py` to filesystem, update domain in `vid2player.html`.
 2. Run the server: `export FLASK_APP=fserve.py && flask run --port=1234`

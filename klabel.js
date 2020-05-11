@@ -917,7 +917,7 @@ class ImageLabeler {
 
   persist_local_storage() {
     var d = new Date();
-    var dt = `${d.getFullYear()}_${d.getMonth()}_${d.getDate()}_${d.getHours()}_${d.getMinutes()}_${d.getSeconds()}`;
+    var dt = `${d.getFullYear()}_${d.getMonth() + 1}_${d.getDate()}_${d.getHours()}_${d.getMinutes()}_${d.getSeconds()}`;
     download(localStorage, `klabeler_${dt}.json`);
   }
 
