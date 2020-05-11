@@ -46,7 +46,7 @@ Expects the file system of following structure:
 
 Sample server available: `fserve.py`. To run:
 1. Copy `fserve.py` to filesystem, update domain in `vid2player.html`.
-2. Run the server: `export FLASK_APP=fserve.py && python3 -m flask --host=0.0.0.0 --port=1234`
+2. Run the server: `export FLASK_APP=fserve.py && flask run --port=1234`
 
 For Olimar:
 1. Copy server over: `scp -r fserve.py cristobal@olimar.stanford.edu:/mnt/hdd-www/www/racket2game/labeler/fserve.py`

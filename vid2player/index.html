@@ -100,10 +100,6 @@
                 handle_video_select();
             }
 
-            function handle_clear_boxes() {
-                labeler.clear_boxes();
-            }
-
             function toggle_extreme_points_display() {
                 var button = document.getElementById("toggle_pt_viz_button");
                 var new_status = !button.toggle_status;
@@ -156,18 +152,17 @@
                 }
             }
 
+            function handle_clear_boxes() {
+                labeler.clear_boxes();
+            }
+
             function handle_get_annotations() {
                 var results = labeler.get_annotations();
                 console.log(results);
             }
 
-            function handle_save_annotations() {
-                labeler.save_annotations_to_local_storage();
-                console.log("KLabeler: saved annotations to localStorage")
-            }
-
             function handle_persist_annotations() {
-                handle_save_annotations();
+                labeler.save_annotations_to_local_storage();
                 labeler.persist_local_storage();
                 console.log("KLabeler: persisted localStorage to file")
             }
@@ -236,6 +231,10 @@
             }
 
             function load_frames_for_selection() {
+                // Save current annotation before changing video
+                labeler.save_annotations_to_local_storage();
+
+                // Update labeler for new point / video
                 var current_video = document.getElementById("select_video").value;
                 var current_point = document.getElementById("select_point").value;
                 get_frames_and_update_labeler(current_video, current_point);
@@ -265,19 +264,6 @@
                     <td>
                         <select id="select_point" onchange="load_frames_for_selection()">
                         </select>
-                    </td>
-                    <td>
-                        Remember to save!
-                    </td>
-                    <td>
-                        <button id="save_annotations" type="button" onclick="handle_save_annotations()">
-                            Save Annotations
-                        </button>
-                    </td>
-                    <td>
-                        <button id="persist_annotations" type="button" onclick="handle_persist_annotations()">
-                            Persist Annotations
-                        </button>
                     </td>
                 </tr>
             </table>
@@ -326,6 +312,11 @@
                 <tr>
                     <td>
                         Annotations:
+                    </td>
+                    <td>
+                        <button id="persist_annotations" type="button" onclick="handle_persist_annotations()">
+                            Persist Annotations
+                        </button>
                     </td>
                     <td>
                         <button id="clear_button" type="button" onclick="handle_clear_boxes()">

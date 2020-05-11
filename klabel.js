@@ -840,6 +840,7 @@ class ImageLabeler {
 	set_current_frame_num(frame_num) {
     // Save previous annotation
     this.save_annotation_to_local_storage();
+
     // Move forward and reset
 		this.current_frame_index = frame_num;
     this.load_annotation_from_local_storage();
