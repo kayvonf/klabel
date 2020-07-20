@@ -16,9 +16,13 @@ class LFViz {
 		this.cursorx = Number.MIN_SAFE_INTEGER;
 		this.cursory = Number.MIN_SAFE_INTEGER;
 
-		this.data_matrix = null;
+		// data
 		this.num_rows = 0;
 		this.num_lf = 0;
+		this.data_matrix = null;
+		this.datapoint_type = null;
+		this.datapoints = null;
+		this.highlight_mask = null;
 
 		// color constants
 		this.color_main_canvas = '#e0e0e0';
@@ -78,26 +82,29 @@ class LFViz {
 
 			// now draw a column of data points
 			for (var i=0; i<rows_in_this_col; i++) {
-				var start_y = i*this.display_el_height;
+	
+				var row_idx = start_row + i;
 
-				for (var j=0; j<this.num_lf; j++) {
-					var idx = (start_row + i)*this.num_lf + j;
+				if (this.highlight_mask[row_idx] == true) {
+					var start_y = i*this.display_el_height;
+					for (var j=0; j<this.num_lf; j++) {
+						var idx = row_idx * this.num_lf + j;
 
-					var el_color = this.color_lf_abstain;
-					if (this.data_matrix[idx] == 1)
-						el_color = this.color_lf_positive;
-					else if (this.data_matrix[idx] == -1)
-						el_color = this.color_lf_negative;
+						var el_color = this.color_lf_abstain;
+						if (this.data_matrix[idx] == 1)
+							el_color = this.color_lf_positive;
+						else if (this.data_matrix[idx] == -1)
+							el_color = this.color_lf_negative;
 
-					var start_x = col * (this.display_el_width * this.num_lf + this.display_col_sep) + j*this.display_el_width;
-					ctx.fillStyle = el_color;
-					ctx.fillRect(start_x, start_y, this.display_el_width, this.display_el_height);
+						var start_x = col * (this.display_el_width * this.num_lf + this.display_col_sep) + j*this.display_el_width;
+						ctx.fillStyle = el_color;
+						ctx.fillRect(start_x, start_y, this.display_el_width, this.display_el_height);
+					}
 				}
 			}
 		}
 
 		this.cached_canvas_image = ctx.getImageData(0, 0, this.main_canvas_el.width, this.main_canvas_el.height);
-
 	}
 
 	render() {
@@ -158,19 +165,32 @@ class LFViz {
 		}
 	}
 
-	load_data(num_rows, num_lf, matrix, datapoint_type=LFViz.DATAPOINT_TYPE_NONE, datapoints=[]) {
+	load_data(num_rows, num_lf, matrix, datapoint_type=LFViz.DATAPOINT_TYPE_NONE, datapoints=[], highlight_mask=[]) {
 		this.num_rows = num_rows;
 		this.num_lf = num_lf;
 		this.data_matrix = matrix;
-
 		this.datapoint_type = datapoint_type;
 		this.datapoints = datapoints;
+		this.highlight_mask = highlight_mask;
+
+		if (this.highlight_mask.length == 0) {
+			this.highlight_mask = [];
+			for (var i=0; i<num_rows; i++) {
+				this.highlight_mask.push(true); 
+			}
+		}
 
 		console.log("KLFViz: loading data (num rows=" + this.num_rows + ", num lf=" + this.num_lf + ")" +
 		       	    " datapoint_type=" + this.datapoint_type);
 
 		this.render_cached_viz();
 		this.render();
+	}
+
+	set_highlight_mask(highlight_mask) {
+		this.highlight_mask = highlight_mask;
+		this.render_cached_viz();
+		this.render();	
 	}
 
 	handle_canvas_mousemove = event => {
