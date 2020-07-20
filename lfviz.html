@@ -147,9 +147,15 @@
 
 					ctx.lineWidth = 2;
 					ctx.strokeStyle = this.color_highlight_box_outline;
+
+					for (var i=0; i<this.num_lf; i++) {
 		
-					ctx.strokeRect(col*spaced_col_width, row*this.display_el_height,
-					    		   this.display_el_width*this.num_lf, this.display_el_height);
+						//ctx.strokeRect(col*spaced_col_width, row*this.display_el_height,
+					    //		   this.display_el_width*this.num_lf, this.display_el_height);
+						ctx.strokeRect(col*spaced_col_width + this.display_el_width*i, row*this.display_el_height,
+					    		   this.display_el_width, this.display_el_height);
+
+					}
 				}
 			}
 		}
