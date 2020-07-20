@@ -292,17 +292,15 @@
 
 	function handle_onload() {
 
-		var num_rows = 1024;
-		var num_lf = 5;
 		var matrix = [];
 		var datapoints = [];
-
-		create_dummy_text_data(num_rows, num_lf, matrix, datapoints);
+		create_dummy_image_data(num_rows, num_lf, matrix, datapoints);
 
 		var main_canvas = document.getElementById(main_canvas_id);
 		var preview_div = document.getElementById(preview_div_id);
+
 		lfviz.init(main_canvas, preview_div);
-		lfviz.load_data(num_rows, num_lf, matrix, KLFViz.DATAPOINT_TYPE_TEXT, datapoints);
+		lfviz.load_data(num_rows, num_lf, matrix, KLFViz.DATAPOINT_TYPE_IMAGE, datapoints);
 	}
 
 </script>
