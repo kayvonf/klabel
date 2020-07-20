@@ -3,6 +3,9 @@
 //   -- kmath.js
 
 /*
+	This file contains the implementation of KLabel.
+
+
 	TODO list:
 	* add support for per-frame categorial annotations (currently only supports binary)
 	* improve selection mechanism for boxes/points
@@ -868,7 +871,7 @@ class ImageLabeler {
 		this.audio_click_sound = new Audio("media/click_sound2.mp3");
 		this.audio_box_done_sound = new Audio("media/click_sound3.mp3");
 
-		// make a dummy frame as a placeholdr until the application provides real data
+		// make a dummy frame as a placeholder until the application provides real data
 		this.frames.push(new Frame(new ImageData));
 		
 		// FIXME(kayvonf): extract to helper function
