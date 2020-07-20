@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>KLabeler Labeling Function Viz</title>
+<style>
+	body {
+		font-family: Helvetica, Arial, sans-seris;
+		font-size: 10pt;
+		color: #c0c0c0;
+		background: #404040;
+	}
+
+	body a {
+		color: #d0d0d0;
+	}
+
+	.bold_text {
+		font-weight: bold;
+	}
+
+</style>
+
+<script>
+
+	class KLFViz {
+
+		constructor() {
+
+			this.main_canvas_el = null;
+
+			this.data_matrix = null;
+			this.num_rows = 0;
+			this.num_lf = 0;
+
+
+			this.color_main_canvas = '#c0c0c0';
+
+			this.color_lf_positive = '#67bf5c';
+			this.color_lf_negative = '#ed665d';
+			this.color_lf_abstain = '#a2a2a2';
+
+		}
+
+		init(main_canvas_el) {
+
+			console.log("KLFViz: initializing...");
+			this.main_canvas_el = main_canvas_el;
+			this.render();
+		}
+
+		render() {
+			var ctx = this.main_canvas_el.getContext('2d');
+
+			ctx.fillStyle = this.color_main_canvas;
+			ctx.fillRect(0, 0, this.main_canvas_el.width, this.main_canvas_el.height);
+
+			var el_width = 8;
+			var el_height = 8;
+			var col_sep = 8;
+
+			var rows_per_col = Math.floor(this.main_canvas_el.height / el_height);
+			var num_cols = Math.floor((this.num_rows + rows_per_col - 1) / rows_per_col); 
+
+			console.log("Height=" + this.main_canvas_el.height + ", data_per_col=" + rows_per_col + ", num_cols=" + num_cols); 
+
+			for (var col=0; col<num_cols; col++) {
+
+				var start_row = col * rows_per_col;
+				var end_row = Math.min(start_row + rows_per_col, this.num_rows);
+				var rows_in_this_col = end_row - start_row;
+
+				// now draw a column of data points
+				for (var i=0; i<rows_in_this_col; i++) {
+					var start_y = i*el_height;
+
+					for (var j=0; j<this.num_lf; j++) {
+						var idx = (start_row + i)*this.num_lf + j;
+
+						var el_color = this.color_lf_abstain;
+						if (this.data_matrix[idx] == 1)
+							el_color = this.color_lf_positive;
+						else if (this.data_matrix[idx] == -1)
+							el_color = this.color_lf_negative;
+
+						var start_x = col * (el_width * this.num_lf + col_sep) + j*el_width;
+						ctx.fillStyle = el_color;
+						ctx.fillRect(start_x, start_y, el_width, el_height);
+					}
+				}
+			}
+		}
+
+		load_data(num_rows, num_lf, matrix) {
+			this.num_rows = num_rows;
+			this.num_lf = num_lf;
+			this.data_matrix = matrix;
+
+			console.log("KLFViz: loading data (num rows=" + this.num_rows + ", num lf=" + this.num_lf + ")");
+			this.render();
+		}
+	}
+
+	var main_canvas_id = 'main_canvas';   // this is the DOM canvas element 
+	var lfviz = new KLFViz;
+
+	function handle_onload() {
+
+		var num_rows = 1024;
+		var num_lf = 5;
+		var data = [];
+		for (var i = 0; i<num_rows; i++) {
+			for (var j=0; j<num_lf; j++) {
+
+				var x = Math.random();
+
+				if (x < 1.0/3.0 )
+					data[i*num_lf + j] = 1;
+				else if (x < 2.0/3.0)
+					data[i*num_lf + j] = 0;
+				else
+					data[i*num_lf + j] = -1;
+			}
+		}
+
+		var main_canvas = document.getElementById(main_canvas_id);
+		lfviz.init(main_canvas);
+		lfviz.load_data(num_rows, num_lf, data);
+	}
+
+</script>
+</head>
+
+<body onload="handle_onload()">
+
+<div id="labeled_div">
+	<canvas id="main_canvas" width="960" height="500" style="border: 1px solid #c0c0c0;" ></canvas>
+
+</div>
+
+
+</body>
+</html>
