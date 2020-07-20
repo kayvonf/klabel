@@ -17,6 +17,7 @@
 	.bold_text {
 		font-weight: bold;
 	}
+
 </style>
 
 <script src="kmath.js"></script>
@@ -24,9 +25,14 @@
 
 	class KLFViz {
 
-		constructor() {
+		static get DATAPOINT_TYPE_NONE() { return 0; }
+		static get DATAPOINT_TYPE_TEXT() { return 1; }
+		static get DATAPOINT_TYPE_IMAGE() { return 2; }
 
+		constructor() {
 			this.main_canvas_el = null;
+			this.preview_main_el = null;
+			this.cached_canvas_image = null;
 
 			this.cursorx = Number.MIN_SAFE_INTEGER;
 			this.cursory = Number.MIN_SAFE_INTEGER;
@@ -42,40 +48,11 @@
 			this.color_lf_abstain = '#a2a2a2';
 			this.color_highlight_box_outline = 'rgba(255, 255, 255, 0.6)';
 
-
 			// layout parameters
 			this.display_el_width = 8;
 			this.display_el_height = 8;
 			this.display_col_sep = 8;
 
-		}
-
-		handle_canvas_mousemove = event => {
-			this.set_canvas_cursor_position(event.offsetX, event.offsetY);
-			this.render();
-		}
-
-		handle_canvas_mouseover = event => {
-			this.set_canvas_cursor_position(event.offsetX, event.offsetY);		
-			this.render();
-		}
-
-		handle_canvas_mouseout = event => {
-			this.cursorx = Number.MIN_SAFE_INTEGER;
-			this.cursory = Number.MIN_SAFE_INTEGER;
-			this.render();
-		}
-
-		init(main_canvas_el) {
-
-			console.log("KLFViz: initializing...");
-			this.main_canvas_el = main_canvas_el;
-
-			this.main_canvas_el.addEventListener("mousemove", this.handle_canvas_mousemove, false);
-			this.main_canvas_el.addEventListener("mouseover", this.handle_canvas_mouseover, false);
-			this.main_canvas_el.addEventListener("mouseout", this.handle_canvas_mouseout, false);
-
-			this.render();
 		}
 
 		// true if the mouse is hovering over the canvas
@@ -90,7 +67,22 @@
 			this.cursory = clamp(y, 0, this.main_canvas_el.height);	
 		}
 
-		render() {
+		get_selected_datapoint() {
+
+			// first get the cursor's row
+			var row = Math.floor(this.cursory / this.display_el_height);
+
+			// then get the cursor's column
+			var spaced_col_width = this.display_el_width*this.num_lf + this.display_col_sep;
+			var col = Math.floor(this.cursorx / spaced_col_width);
+
+			// compute datapoint index
+			var rows_per_col = Math.floor(this.main_canvas_el.height / this.display_el_height);
+			return col * rows_per_col + row;
+		}
+
+		render_cached_viz() {
+
 			var ctx = this.main_canvas_el.getContext('2d');
 
 			ctx.fillStyle = this.color_main_canvas;
@@ -98,8 +90,6 @@
 
 			var rows_per_col = Math.floor(this.main_canvas_el.height / this.display_el_height);
 			var num_cols = Math.floor((this.num_rows + rows_per_col - 1) / rows_per_col); 
-
-			//console.log("Height=" + this.main_canvas_el.height + ", data_per_col=" + rows_per_col + ", num_cols=" + num_cols); 
 
 			for (var col=0; col<num_cols; col++) {
 
@@ -127,24 +117,33 @@
 				}
 			}
 
+			this.cached_canvas_image = ctx.getImageData(0, 0, this.main_canvas_el.width, this.main_canvas_el.height);
+
+		}
+
+		render() {
+
+			var ctx = this.main_canvas_el.getContext('2d');
+
+			ctx.fillStyle = this.color_main_canvas;
+			ctx.fillRect(0, 0, this.main_canvas_el.width, this.main_canvas_el.height);
+
+			// draw the cached image previously rendered
+			ctx.putImageData(this.cached_canvas_image, 0, 0);
+
+			// check to see if cursor is hovering over any datapoint row.
+			// if so, highlight it
 			if (this.is_hovering()) {
 
-				// check to see if cursor is hovering over any datapoint row
-				// if so highlight it
-
-				// first get the row
-				var row = Math.floor(this.cursory / this.display_el_height);
-
-				// then get the column
-				var spaced_col_width = this.display_el_width*this.num_lf + this.display_col_sep;
-				var col = Math.floor(this.cursorx / spaced_col_width);
-
-				// compute datapoint index
+				var idx = this.get_selected_datapoint();
 				var rows_per_col = Math.floor(this.main_canvas_el.height / this.display_el_height);
-				var datapoint = col * rows_per_col + row;
+				var row = idx % rows_per_col;
+				var col = Math.floor(idx / rows_per_col);
 
 				// draw the highlight
-				if (datapoint < this.num_rows) {
+				if (idx < this.num_rows) {
+
+					var spaced_col_width = this.display_el_width*this.num_lf + this.display_col_sep;
 
 					ctx.lineWidth = 1;
 					ctx.strokeStyle = this.color_highlight_box_outline;
@@ -152,45 +151,99 @@
 					ctx.strokeRect(col*spaced_col_width, row*this.display_el_height,
 					    		   this.display_el_width*this.num_lf, this.display_el_height);
 				}
-
 			}
 		}
 
-		load_data(num_rows, num_lf, matrix) {
+		update_preview() {
+			if (this.is_hovering()) {
+				var idx = this.get_selected_datapoint();
+				if (idx < this.num_rows)
+					this.preview_div_el.innerHTML = "Datapoint: " + idx + "<br/>" + this.datapoints[idx];
+				else
+					this.preview_div_el.innerHTML = "";
+			}
+
+		}
+
+		load_data(num_rows, num_lf, matrix, datapoint_type=KLFViz.DATAPOINT_TYPE_NONE, datapoints=[]) {
 			this.num_rows = num_rows;
 			this.num_lf = num_lf;
 			this.data_matrix = matrix;
 
-			console.log("KLFViz: loading data (num rows=" + this.num_rows + ", num lf=" + this.num_lf + ")");
+			this.datapoint_type = datapoint_type;
+			this.datapoints = datapoints;
+
+			console.log("KLFViz: loading data (num rows=" + this.num_rows + ", num lf=" + this.num_lf + "), datapoint_type=" + this.datapoint_type);
+			this.render_cached_viz();
 			this.render();
 		}
+
+		handle_canvas_mousemove = event => {
+			this.set_canvas_cursor_position(event.offsetX, event.offsetY);
+			this.render();
+			this.update_preview();
+		}
+
+		handle_canvas_mouseover = event => {
+			this.set_canvas_cursor_position(event.offsetX, event.offsetY);		
+			this.render();
+			this.update_preview();
+		}
+
+		handle_canvas_mouseout = event => {
+			this.cursorx = Number.MIN_SAFE_INTEGER;
+			this.cursory = Number.MIN_SAFE_INTEGER;
+			this.render();
+			this.update_preview();
+		}
+
+		init(main_canvas_el, preview_div_el) {
+
+			console.log("KLFViz: initializing...");
+			this.main_canvas_el = main_canvas_el;
+
+			this.main_canvas_el.addEventListener("mousemove", this.handle_canvas_mousemove, false);
+			this.main_canvas_el.addEventListener("mouseover", this.handle_canvas_mouseover, false);
+			this.main_canvas_el.addEventListener("mouseout", this.handle_canvas_mouseout, false);
+
+			this.preview_div_el = preview_div_el;
+
+			this.render_cached_viz();
+			this.render();
+		}
+
 	}
 
 	var main_canvas_id = 'main_canvas';   // this is the DOM canvas element 
+	var preview_div_id = 'preview_div';   // this is the DOM canvas element 
 	var lfviz = new KLFViz;
 
 	function handle_onload() {
 
 		var num_rows = 1024;
 		var num_lf = 5;
-		var data = [];
+		var matrix = [];
+		var datapoints = [];
 		for (var i = 0; i<num_rows; i++) {
 			for (var j=0; j<num_lf; j++) {
 
 				var x = Math.random();
 
-				if (x < 1.0/5.0 )
-					data[i*num_lf + j] = 1;
+				if (x < 1.0/5.0)
+					matrix[i*num_lf + j] = 1;
 				else if (x < 2.0/5.0)
-					data[i*num_lf + j] = -1;
+					matrix[i*num_lf + j] = -1;
 				else
-					data[i*num_lf + j] = 0;
+					matrix[i*num_lf + j] = 0;
 			}
+
+			datapoints.push("This is a sentence for datapoint " + i + ".  This will be displayed on hover.");
 		}
 
 		var main_canvas = document.getElementById(main_canvas_id);
-		lfviz.init(main_canvas);
-		lfviz.load_data(num_rows, num_lf, data);
+		var preview_div = document.getElementById(preview_div_id);
+		lfviz.init(main_canvas, preview_div);
+		lfviz.load_data(num_rows, num_lf, matrix, KLFViz.DATAPOINT_TYPE_TEXT, datapoints);
 	}
 
 </script>
@@ -199,8 +252,11 @@
 <body onload="handle_onload()">
 
 <div id="labeled_div">
-	<canvas id="main_canvas" width="960" height="500" style="border: 1px solid #c0c0c0;" ></canvas>
+	<canvas id="main_canvas" width="960" height="500" style="border: 1px solid #c0c0c0; display: block; float:left;" ></canvas>
+	<div id="preview_div" style="border: 1px solid #c0c0c0; width: 256px; height: 500px; float:left;">&nbsp;</div>
 </div>
+
+<!-- 
 <div>Highlight data points where 
 	<select id="select_lf" onchange="">
        <option value="lf_all">all labels funcs</option>
@@ -214,6 +270,8 @@
     </select>
     .
 </div>
+-->
+
 <div id="hover_status"></div>
 </body>
 </html>
