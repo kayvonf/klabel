@@ -22,14 +22,14 @@ class LFViz {
 		this.data_matrix = null;
 		this.datapoint_type = null;
 		this.datapoints = null;
-		this.highlight_mask = null;
+		this.row_filter_mask = null;
 
 		// color constants
 		this.color_main_canvas = '#e0e0e0';
 		this.color_lf_positive = '#67bf5c';
 		this.color_lf_negative = '#ed665d';
 		this.color_lf_abstain = '#a2a2a2';
-		this.color_highlight_box_outline = 'rgba(255, 255, 255, 0.5)';
+		this.color_highlight_box_outline = 'rgba(0.0, 0.0, 0.0, 1.0)';
 
 		// layout parameters
 		this.display_el_width = 8;
@@ -85,7 +85,7 @@ class LFViz {
 	
 				var row_idx = start_row + i;
 
-				if (this.highlight_mask[row_idx] == true) {
+				if (this.row_filter_mask[row_idx] == true) {
 					var start_y = i*this.display_el_height;
 					for (var j=0; j<this.num_lf; j++) {
 						var idx = row_idx * this.num_lf + j;
@@ -165,18 +165,18 @@ class LFViz {
 		}
 	}
 
-	load_data(num_rows, num_lf, matrix, datapoint_type=LFViz.DATAPOINT_TYPE_NONE, datapoints=[], highlight_mask=[]) {
+	load_data(num_rows, num_lf, matrix, datapoint_type=LFViz.DATAPOINT_TYPE_NONE, datapoints=[], row_filter_mask=[]) {
 		this.num_rows = num_rows;
 		this.num_lf = num_lf;
 		this.data_matrix = matrix;
 		this.datapoint_type = datapoint_type;
 		this.datapoints = datapoints;
-		this.highlight_mask = highlight_mask;
+		this.row_filter_mask = row_filter_mask;
 
-		if (this.highlight_mask.length == 0) {
-			this.highlight_mask = [];
+		if (this.row_filter_mask.length == 0) {
+			this.row_filter_mask = [];
 			for (var i=0; i<num_rows; i++) {
-				this.highlight_mask.push(true); 
+				this.row_filter_mask.push(true); 
 			}
 		}
 
@@ -187,8 +187,8 @@ class LFViz {
 		this.render();
 	}
 
-	set_highlight_mask(highlight_mask) {
-		this.highlight_mask = highlight_mask;
+	set_row_filter_mask(row_filter_mask) {
+		this.row_filter_mask = row_filter_mask;
 		this.render_cached_viz();
 		this.render();	
 	}

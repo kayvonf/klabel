@@ -25,6 +25,12 @@
 
 <script>
 
+	// hacky enum
+	var LF_OUTPUT_POSITIVE = 1;
+	var LF_OUTPUT_NEGATIVE = -1;
+	var LF_OUTPUT_ABSTAIN = 0;
+	var LF_OUTPUT_DISAGREE = -2;
+
 	var main_canvas_id = 'main_canvas';   // this is the DOM canvas element 
 	var preview_div_id = 'preview_div';   // this is the DOM canvas element 
 	var lfviz = new LFViz;
@@ -32,62 +38,130 @@
 	// data passed to viz
 	var num_rows = 1024;
 	var num_lf = 5;
+
 	var matrix = [];
 	var datapoints = [];
-	var highlight = [];
+	var row_filter_mask = [];
 
 	var lf_names = [];
 	for (var i=0; i<num_lf; i++) {
 		lf_names.push("LF" + i);
 	}
 
-	function compute_highlight_mask(lf_function, criteria) {
+    // HACK(kayvonf): This is a function that filters rows according to a predicate.
+    // It's meant to be throwaway code for now.
+    // it returns a boolean array, designating which rows should be retained.
+	function compute_row_filter_mask(lf_function, criteria) {
 
-		highlight = [];
+		row_filter_mask = [];
 
-		if (lf_function == -3) {
+		var disagree_check = false;
+		if (criteria == -2)
+			disagree_check = true;
+
+		//
+		// no filter
+		//
+		if (lf_function == -1) {  		
 			for (var i=0; i<num_rows; i++) {
-				highlight[i] = true;
+				row_filter_mask[i] = true;
 			}
 
-		} else if (lf_function == -2) {  // all LFs match criteria
+		//
+		// all LFs match criteria
+		//
+		} else if (lf_function == -2) {  
 
 			for (var i=0; i<num_rows; i++) {
 				var idx = i*num_lf;
-				highlight[i] = true;
+				row_filter_mask[i] = true;
 				for (var j=0; j<num_lf; j++) {
-					if (matrix[idx + j] != criteria)
-						highlight[i] = false;
+					if (matrix[idx + j] != criteria || matrix[idx+j] == LF_OUTPUT_DISAGREE)
+						row_filter_mask[i] = false;
 				}
 			}
 
-		} else if (lf_function == -1) { // any LFs match criteria
+		//
+		// all LFs that vote match critera
+		//
+		} else if (lf_function == -3) { 	
 
 			for (var i=0; i<num_rows; i++) {
 				var idx = i*num_lf;
-				highlight[i] = false;
+				var num_votes = 0;
+
+				row_filter_mask[i] = true;
+
 				for (var j=0; j<num_lf; j++) {
-					if (matrix[idx + j] == criteria)
-						highlight[i] = true;
+					if (matrix[idx + j] == LF_OUTPUT_ABSTAIN)
+						continue;
+					
+					num_votes++;
+					if (matrix[idx + j] != criteria || matrix[idx+j] == LF_OUTPUT_DISAGREE)
+						row_filter_mask[i] = false;
+				}
+
+				// row shouldn't pass an "all voting LF that..." filter if there are no voting LFs
+				if (num_votes == 0)
+					row_filter_mask[i] = false;
+			}
+
+		//
+		// any LFs match criteria
+		//
+		} else if (lf_function == -4) {
+
+			for (var i=0; i<num_rows; i++) {
+				var idx = i*num_lf;
+				row_filter_mask[i] = false;
+				for (var j=0; j<num_lf; j++) {
+
+					if (disagree_check) {
+						for (var k=0; k<num_lf; k++) {
+							if (j != k && 
+								matrix[idx+j] != LF_OUTPUT_ABSTAIN && matrix[idx+k] != LF_OUTPUT_ABSTAIN &&
+								matrix[idx+j] != matrix[idx+k]) {
+								row_filter_mask[i] = true; 
+							}
+						}
+
+					} else {
+						if (matrix[idx + j] == criteria)
+							row_filter_mask[i] = true;
+					}
 				}
 			}
 
-		} else { // specific LFs match criteria
+		//
+		// specific LFs match criteria
+ 		//
+		} else {
 
 			for (var i=0; i<num_rows; i++) {
 				var idx = i*num_lf;
-				if (matrix[idx + lf_function] == criteria)
-					highlight[i] = true;
-				else
-					highlight[i] = false;
+				row_filter_mask[i] = false;
+
+				if (disagree_check) {
+					for (var k=0; k<num_lf; k++) {
+						if (lf_function != k &&
+							matrix[idx+lf_function] != LF_OUTPUT_ABSTAIN && matrix[idx+k] != LF_OUTPUT_ABSTAIN &&
+							matrix[idx+lf_function] != matrix[idx+k]) {
+							row_filter_mask[i] = true; 
+						}
+					}
+
+				} else {
+					if (matrix[idx + lf_function] == criteria)
+						row_filter_mask[i] = true;
+				}
 			}
 
 		}
 
 	}
 
-	function reset_highlight_mask() {
-		compute_highlight_mask(-3, 0);
+	function reset_row_filter_mask() {
+		compute_row_filter_mask(-1, 0);
 	}
 
 	function create_dummy_lf_data(num_rows, num_lf, matrix) {
@@ -115,8 +189,8 @@
 			datapoints.push("This is the text string associated with datapoint " + i + " that the labeling functions were executed on.  LFViz will display the text on hover.");
 		}
 
-		reset_highlight_mask();
-		lfviz.load_data(num_rows, num_lf, matrix, LFViz.DATAPOINT_TYPE_TEXT, datapoints, highlight);
+		reset_row_filter_mask();
+		lfviz.load_data(num_rows, num_lf, matrix, LFViz.DATAPOINT_TYPE_TEXT, datapoints, row_filter_mask);
 	}
 
 	function handle_create_dummy_images() {
@@ -128,26 +202,29 @@
 			datapoints.push("media/image_0" + (i % 8) + ".jpg");
 		}
 
-		reset_highlight_mask();
-		lfviz.load_data(num_rows, num_lf, matrix, LFViz.DATAPOINT_TYPE_IMAGE, datapoints, highlight);
+		reset_row_filter_mask();
+		lfviz.load_data(num_rows, num_lf, matrix, LFViz.DATAPOINT_TYPE_IMAGE, datapoints, row_filter_mask);
 	}
 
-	function handle_clear_highlight() {
-		reset_highlight_mask();
-		lfviz.set_highlight_mask(highlight);
+	function handle_clear_row_filter_mask() {
+		reset_row_filter_mask();
+		lfviz.set_row_filter_mask(row_filter_mask);
 	}
 
-	function handle_make_highlight() {
+	function handle_make_row_filter_mask() {
 
 		var lf_select = 0;
 		var lf_value = 1;
 		var select_lf_box = document.getElementById("select_lf");
 		var select_value_box = document.getElementById("select_lf_status");
 
+		// which LF's to look at
 		if (select_lf_box.value == "lf_all")
 			lf_select = -2;
+		else if (select_lf_box.value == "lf_all_voting")
+			lf_select = -3;
 		else if (select_lf_box.value == "lf_any")
-			lf_select = -1;
+			lf_select = -4;
 		else {
 			for (var i=0; i<num_lf; i++) {
 				if (select_lf_box.value == ("LF" + i)) {
@@ -157,15 +234,19 @@
 			}
 		}
 		
+		// what values are important
 		if (select_value_box.value == "positive")
-			lf_value = 1;
+			lf_value = LF_OUTPUT_POSITIVE;
 		else if (select_value_box.value == "negative")
-			lf_value = -1;
-		else
-			lf_value = 0;
+			lf_value = LF_OUTPUT_NEGATIVE;
+		else if (select_value_box.value == "abstain")
+			lf_value = LF_OUTPUT_ABSTAIN;
+		else {
+			lf_value = LF_OUTPUT_DISAGREE;   // disagrees
+		}	
 
-		compute_highlight_mask(lf_select, lf_value); 
-		lfviz.set_highlight_mask(highlight);
+		compute_row_filter_mask(lf_select, lf_value); 
+		lfviz.set_row_filter_mask(row_filter_mask);
 	}
 
 	function handle_onload() {
@@ -195,13 +276,10 @@
 </div>
 
 <div style="clear: both;">
-	<button id="dummy_text_button" type="button" onclick="handle_create_dummy_text()">Create Dummy Text Data</button>
-	<button id="dummy_image_button" type="button" onclick="handle_create_dummy_images()">Create Dummy Image Data</button>
-</div>
-
-<div>Highlight data points where 
+	Highlight data points where 
 	<select id="select_lf">
-       <option value="lf_all">all labels funcs</option>
+       <option value="lf_all">all labeling funcs</option>
+       <option value="lf_all_voting">all voting labeling funcs</option>
        <option value="lf_any">any labeling func</option>
     </select>
     is
@@ -209,13 +287,19 @@
        <option value="positive">positive</option>
        <option value="negative">negative</option>
        <option value="abstain">abstains</option>
+       <option value="disagree">votes, but disagrees</option>
     </select>
     .
 
-    <button id="make_selection" type="button" onclick="handle_make_highlight()">Go!</button>
-    <button id="make_selection" type="button" onclick="handle_clear_highlight()">Clear</button>
-
+    <button id="make_selection" type="button" onclick="handle_make_row_filter_mask()">Go!</button>
+    <button id="make_selection" type="button" onclick="handle_clear_row_filter_mask()">Clear Filter</button>
 </div>
+
+<div>
+	<button id="dummy_text_button" type="button" onclick="handle_create_dummy_text()">Create Dummy Text Data</button>
+	<button id="dummy_image_button" type="button" onclick="handle_create_dummy_images()">Create Dummy Image Data</button>
+</div>
+
 
 <p>
 <div>Green - positive vote</div>
