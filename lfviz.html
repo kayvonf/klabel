@@ -162,6 +162,7 @@
 
 	function reset_row_filter_mask() {
 		compute_row_filter_mask(-1, 0);
+		lfviz.set_row_filter_mask(row_filter_mask);
 	}
 
 	function create_dummy_lf_data(num_rows, num_lf, matrix) {
@@ -189,8 +190,8 @@
 			datapoints.push("This is the text string associated with datapoint " + i + " that the labeling functions were executed on.  LFViz will display the text on hover.");
 		}
 
+		lfviz.load_data(num_rows, num_lf, matrix, LFViz.DATAPOINT_TYPE_TEXT, datapoints);
 		reset_row_filter_mask();
-		lfviz.load_data(num_rows, num_lf, matrix, LFViz.DATAPOINT_TYPE_TEXT, datapoints, row_filter_mask);
 	}
 
 	function handle_create_dummy_images() {
@@ -202,8 +203,9 @@
 			datapoints.push("media/image_0" + (i % 8) + ".jpg");
 		}
 
+		lfviz.load_data(num_rows, num_lf, matrix, LFViz.DATAPOINT_TYPE_IMAGE, datapoints);
 		reset_row_filter_mask();
-		lfviz.load_data(num_rows, num_lf, matrix, LFViz.DATAPOINT_TYPE_IMAGE, datapoints, row_filter_mask);
+
 	}
 
 	function handle_clear_row_filter_mask() {

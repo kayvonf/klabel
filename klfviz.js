@@ -165,19 +165,16 @@ class LFViz {
 		}
 	}
 
-	load_data(num_rows, num_lf, matrix, datapoint_type=LFViz.DATAPOINT_TYPE_NONE, datapoints=[], row_filter_mask=[]) {
+	load_data(num_rows, num_lf, matrix, datapoint_type=LFViz.DATAPOINT_TYPE_NONE, datapoints=[]) {
 		this.num_rows = num_rows;
 		this.num_lf = num_lf;
 		this.data_matrix = matrix;
 		this.datapoint_type = datapoint_type;
 		this.datapoints = datapoints;
-		this.row_filter_mask = row_filter_mask;
 
-		if (this.row_filter_mask.length == 0) {
-			this.row_filter_mask = [];
-			for (var i=0; i<num_rows; i++) {
-				this.row_filter_mask.push(true); 
-			}
+		this.row_filter_mask = [];
+		for (var i=0; i<num_rows; i++) {
+			this.row_filter_mask.push(true); 
 		}
 
 		console.log("KLFViz: loading data (num rows=" + this.num_rows + ", num lf=" + this.num_lf + ")" +
