@@ -22,7 +22,10 @@ class LFViz {
 		this.data_matrix = null;
 		this.datapoint_type = null;
 		this.datapoints = null;
+
+		// visualization
 		this.row_filter_mask = null;
+		this.row_sorting = null;
 
 		// color constants
 		this.color_main_canvas = '#e0e0e0';
@@ -50,7 +53,7 @@ class LFViz {
 		this.cursory = clamp(y, 0, this.main_canvas_el.height);	
 	}
 
-	get_selected_datapoint() {
+	get_highlighted_viz_cell() {
 
 		// first get the cursor's row
 		var row = Math.floor(this.cursory / this.display_el_height);
@@ -62,6 +65,20 @@ class LFViz {
 		// compute datapoint index
 		var rows_per_col = Math.floor(this.main_canvas_el.height / this.display_el_height);
 		return col * rows_per_col + row;
+
+		if (viz_row_idx < this.num_rows)
+			return this.row_sorting[viz_row_idx];
+		else
+			return -1;
+	}
+
+	get_highlighted_datapoint() {
+
+		var viz_row_idx = this.get_highlighted_viz_cell();
+		if (viz_row_idx < this.num_rows)
+			return this.row_sorting[viz_row_idx];
+		else
+			return -1;
 	}
 
 	render_cached_viz() {
@@ -83,7 +100,8 @@ class LFViz {
 			// now draw a column of data points
 			for (var i=0; i<rows_in_this_col; i++) {
 	
-				var row_idx = start_row + i;
+				var viz_row_idx = start_row + i;
+				var row_idx = this.row_sorting[viz_row_idx];
 
 				if (this.row_filter_mask[row_idx] == true) {
 					var start_y = i*this.display_el_height;
@@ -121,13 +139,15 @@ class LFViz {
 		// if so, highlight it
 		if (this.is_hovering()) {
 
-			var idx = this.get_selected_datapoint();
-			var rows_per_col = Math.floor(this.main_canvas_el.height / this.display_el_height);
-			var row = idx % rows_per_col;
-			var col = Math.floor(idx / rows_per_col);
+			var hover_idx = this.get_highlighted_viz_cell(); 
+			var idx = this.get_highlighted_datapoint();
 
 			// draw the highlight
-			if (idx < this.num_rows) {
+			if (idx >= 0) {
+
+				var rows_per_col = Math.floor(this.main_canvas_el.height / this.display_el_height);
+				var row = hover_idx % rows_per_col;
+				var col = Math.floor(hover_idx / rows_per_col);
 
 				var spaced_col_width = this.display_el_width*this.num_lf + this.display_col_sep;
 
@@ -148,9 +168,22 @@ class LFViz {
 
 	update_preview() {
 		if (this.is_hovering()) {
-			var idx = this.get_selected_datapoint();
-			if (idx < this.num_rows) {
+			var idx = this.get_highlighted_datapoint();
+			if (idx >= 0) {
 				var str = "<p>Datapoint: " + idx + " of " + this.num_rows + "<p/>";
+
+				var base = this.num_lf*idx;
+				str += "<p>";
+				str += "<div>LM score: "+ this.model_scores[idx].toPrecision(4) + "</div>"
+				str += "<div>LF votes: ";
+				for (var i=0;i<this.num_lf; i++) {
+					str += this.data_matrix[base + i];
+					if (i < this.num_lf-1)
+						str += ", "; 
+				}
+				str += "</div>";
+				str += "</p>";
+
 				if (this.datapoint_type == LFViz.DATAPOINT_TYPE_TEXT)
 					str += "<p>" + this.datapoints[idx] + "</p>";
 				else if (this.datapoint_type == LFViz.DATAPOINT_TYPE_IMAGE)
@@ -165,10 +198,11 @@ class LFViz {
 		}
 	}
 
-	load_data(num_rows, num_lf, matrix, datapoint_type=LFViz.DATAPOINT_TYPE_NONE, datapoints=[]) {
+	set_data(num_rows, num_lf, matrix, model_scores, datapoint_type=LFViz.DATAPOINT_TYPE_NONE, datapoints=[]) {
 		this.num_rows = num_rows;
 		this.num_lf = num_lf;
 		this.data_matrix = matrix;
+		this.model_scores = model_scores;
 		this.datapoint_type = datapoint_type;
 		this.datapoints = datapoints;
 
@@ -177,11 +211,22 @@ class LFViz {
 			this.row_filter_mask.push(true); 
 		}
 
+		this.row_sorting = [];
+		for (var i=0; i<num_rows; i++) {
+			this.row_sorting.push(i);
+		}
+
 		console.log("KLFViz: loading data (num rows=" + this.num_rows + ", num lf=" + this.num_lf + ")" +
 		       	    " datapoint_type=" + this.datapoint_type);
 
 		this.render_cached_viz();
 		this.render();
+	}
+
+	set_row_sorting(row_sorting) {
+		this.row_sorting = row_sorting;
+		this.render_cached_viz();
+		this.render();	
 	}
 
 	set_row_filter_mask(row_filter_mask) {
