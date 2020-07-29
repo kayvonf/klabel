@@ -46,13 +46,17 @@ class LFViz {
 		return (this.cursorx >= 0 && this.cursory >= 0);
 	}
 
-	// Clamp the cursor to the image dimensions so that clicks,
-	// and (resulting bounding boxes) are always within the image
+	// Clamp the cursor to the image dimensions
 	set_canvas_cursor_position(x,y) {
 		this.cursorx = clamp(x, 0, this.main_canvas_el.width);
 		this.cursory = clamp(y, 0, this.main_canvas_el.height);	
 	}
 
+	// Returns the index (in the visualizer) of the "cell" that is being hovered over.  
+	// The top-left corner of the visualization is cell 0.
+	// Keep in mind that because of row sorting, the cell is not necessarily the same 
+	// as the row of the datapoint that is being hovered over.
+	// To get the data row, use get_highilghted_viz_cell()  
 	get_highlighted_viz_cell() {
 
 		// first get the cursor's row
@@ -62,16 +66,12 @@ class LFViz {
 		var spaced_col_width = this.display_el_width*this.num_lf + this.display_col_sep;
 		var col = Math.floor(this.cursorx / spaced_col_width);
 
-		// compute datapoint index
+		// compute index
 		var rows_per_col = Math.floor(this.main_canvas_el.height / this.display_el_height);
 		return col * rows_per_col + row;
-
-		if (viz_row_idx < this.num_rows)
-			return this.row_sorting[viz_row_idx];
-		else
-			return -1;
 	}
 
+	// returns the index of the datapoint that is being hovered over
 	get_highlighted_datapoint() {
 
 		var viz_row_idx = this.get_highlighted_viz_cell();
@@ -81,6 +81,9 @@ class LFViz {
 			return -1;
 	}
 
+	// Render the matrix part of the visualization and cache the results in an image.
+	// Rendering many boxes can bge expensive, so the point of this caching is to avoid
+	// having to draw all the visual elements of the visualization on every mouse move.
 	render_cached_viz() {
 
 		var ctx = this.main_canvas_el.getContext('2d');
@@ -122,9 +125,11 @@ class LFViz {
 			}
 		}
 
+		// store off what was just rendered into an image
 		this.cached_canvas_image = ctx.getImageData(0, 0, this.main_canvas_el.width, this.main_canvas_el.height);
 	}
 
+	// main rendering routine
 	render() {
 
 		var ctx = this.main_canvas_el.getContext('2d');
@@ -155,17 +160,16 @@ class LFViz {
 				ctx.strokeStyle = this.color_highlight_box_outline;
 
 				for (var i=0; i<this.num_lf; i++) {
-	
-					//ctx.strokeRect(col*spaced_col_width, row*this.display_el_height,
-				    //		   this.display_el_width*this.num_lf, this.display_el_height);
 					ctx.strokeRect(col*spaced_col_width + this.display_el_width*i, row*this.display_el_height,
 				    		   this.display_el_width, this.display_el_height);
-
 				}
 			}
 		}
 	}
 
+	// Updates the contents of the datapoint preview DIV.
+	// Pretty print the LF and label model results and display the
+	// source data (either a text string or an image)
 	update_preview() {
 		if (this.is_hovering()) {
 			var idx = this.get_highlighted_datapoint();
@@ -198,6 +202,8 @@ class LFViz {
 		}
 	}
 
+	// Update the input data for the visualizer.
+	// Currently, updating the input data resets both the row filter mask and the row sorting
 	set_data(num_rows, num_lf, matrix, model_scores, datapoint_type=LFViz.DATAPOINT_TYPE_NONE, datapoints=[]) {
 		this.num_rows = num_rows;
 		this.num_lf = num_lf;
@@ -206,11 +212,13 @@ class LFViz {
 		this.datapoint_type = datapoint_type;
 		this.datapoints = datapoints;
 
+		// reset the filter mask
 		this.row_filter_mask = [];
 		for (var i=0; i<num_rows; i++) {
 			this.row_filter_mask.push(true); 
 		}
 
+		// reset the sorting
 		this.row_sorting = [];
 		for (var i=0; i<num_rows; i++) {
 			this.row_sorting.push(i);
@@ -223,12 +231,15 @@ class LFViz {
 		this.render();
 	}
 
+	// The visualization will permute the datapoint according to the indices in row_sorting
 	set_row_sorting(row_sorting) {
 		this.row_sorting = row_sorting;
 		this.render_cached_viz();
 		this.render();	
 	}
 
+	// The row filter mask determines which datapoints get shown in the visualization.
+	// Datapoints that aren't included in the filter are not drawn.
 	set_row_filter_mask(row_filter_mask) {
 		this.row_filter_mask = row_filter_mask;
 		this.render_cached_viz();
