@@ -39,14 +39,22 @@
 	var num_rows = 1024;
 	var num_lf = 5;
 
-	var matrix = [];
-	var datapoints = [];
-	var row_filter_mask = [];
+	// the source data: text strings (if text), or an image url
+	var source_data = [];  
+	
+	// table of labeling function outputs
+	var lf_matrix = [];
 
+	// human-readable names of the labeling functions
 	var lf_names = [];
 	for (var i=0; i<num_lf; i++) {
 		lf_names.push("LF" + i);
 	}
+
+	// for visualization only. This mask denoting the rows that should be
+	// rendered in the visualizer.
+	var row_filter_mask = [];
+
 
     // HACK(kayvonf): This is a function that filters rows according to a predicate.
     // It's meant to be throwaway code for now.
@@ -76,7 +84,7 @@
 				var idx = i*num_lf;
 				row_filter_mask[i] = true;
 				for (var j=0; j<num_lf; j++) {
-					if (matrix[idx + j] != criteria || matrix[idx+j] == LF_OUTPUT_DISAGREE)
+					if (lf_matrix[idx + j] != criteria || lf_matrix[idx+j] == LF_OUTPUT_DISAGREE)
 						row_filter_mask[i] = false;
 				}
 			}
@@ -93,11 +101,11 @@
 				row_filter_mask[i] = true;
 
 				for (var j=0; j<num_lf; j++) {
-					if (matrix[idx + j] == LF_OUTPUT_ABSTAIN)
+					if (lf_matrix[idx + j] == LF_OUTPUT_ABSTAIN)
 						continue;
 					
 					num_votes++;
-					if (matrix[idx + j] != criteria || matrix[idx+j] == LF_OUTPUT_DISAGREE)
+					if (lf_matrix[idx + j] != criteria || lf_matrix[idx+j] == LF_OUTPUT_DISAGREE)
 						row_filter_mask[i] = false;
 				}
 
@@ -119,14 +127,14 @@
 					if (disagree_check) {
 						for (var k=0; k<num_lf; k++) {
 							if (j != k && 
-								matrix[idx+j] != LF_OUTPUT_ABSTAIN && matrix[idx+k] != LF_OUTPUT_ABSTAIN &&
-								matrix[idx+j] != matrix[idx+k]) {
+								lf_matrix[idx+j] != LF_OUTPUT_ABSTAIN && lf_matrix[idx+k] != LF_OUTPUT_ABSTAIN &&
+								lf_matrix[idx+j] != lf_matrix[idx+k]) {
 								row_filter_mask[i] = true; 
 							}
 						}
 
 					} else {
-						if (matrix[idx + j] == criteria)
+						if (lf_matrix[idx + j] == criteria)
 							row_filter_mask[i] = true;
 					}
 				}
@@ -144,14 +152,14 @@
 				if (disagree_check) {
 					for (var k=0; k<num_lf; k++) {
 						if (lf_function != k &&
-							matrix[idx+lf_function] != LF_OUTPUT_ABSTAIN && matrix[idx+k] != LF_OUTPUT_ABSTAIN &&
-							matrix[idx+lf_function] != matrix[idx+k]) {
+							lf_matrix[idx+lf_function] != LF_OUTPUT_ABSTAIN && lf_matrix[idx+k] != LF_OUTPUT_ABSTAIN &&
+							lf_matrix[idx+lf_function] != lf_matrix[idx+k]) {
 							row_filter_mask[i] = true; 
 						}
 					}
 
 				} else {
-					if (matrix[idx + lf_function] == criteria)
+					if (lf_matrix[idx + lf_function] == criteria)
 						row_filter_mask[i] = true;
 				}
 			}
@@ -165,45 +173,45 @@
 		lfviz.set_row_filter_mask(row_filter_mask);
 	}
 
-	function create_dummy_lf_data(num_rows, num_lf, matrix) {
+	function create_dummy_lf_data(num_rows, num_lf, lf_matrix) {
 		for (var i = 0; i<num_rows; i++) {
 			for (var j=0; j<num_lf; j++) {
 
 				var x = Math.random();
 
 				if (x < 1.0/5.0)
-					matrix[i*num_lf + j] = 1;
+					lf_matrix[i*num_lf + j] = 1;
 				else if (x < 2.0/5.0)
-					matrix[i*num_lf + j] = -1;
+					lf_matrix[i*num_lf + j] = -1;
 				else
-					matrix[i*num_lf + j] = 0;
+					lf_matrix[i*num_lf + j] = 0;
 			}
 		}		
 	}
 
 	function handle_create_dummy_text() {
-		matrix = [];
+		lf_matrix = [];
 		datapoints = [];
-		create_dummy_lf_data(num_rows, num_lf, matrix);
+		create_dummy_lf_data(num_rows, num_lf, lf_matrix);
 
 		for (var i=0; i<num_rows; i++) {
 			datapoints.push("This is the text string associated with datapoint " + i + " that the labeling functions were executed on.  LFViz will display the text on hover.");
 		}
 
-		lfviz.load_data(num_rows, num_lf, matrix, LFViz.DATAPOINT_TYPE_TEXT, datapoints);
+		lfviz.load_data(num_rows, num_lf, lf_matrix, LFViz.DATAPOINT_TYPE_TEXT, datapoints);
 		reset_row_filter_mask();
 	}
 
 	function handle_create_dummy_images() {
-		matrix = [];
+		lf_matrix = [];
 		datapoints = [];
-		create_dummy_lf_data(num_rows, num_lf, matrix);
+		create_dummy_lf_data(num_rows, num_lf, lf_matrix);
 
 		for (var i=0; i<num_rows; i++) {
 			datapoints.push("media/image_0" + (i % 8) + ".jpg");
 		}
 
-		lfviz.load_data(num_rows, num_lf, matrix, LFViz.DATAPOINT_TYPE_IMAGE, datapoints);
+		lfviz.load_data(num_rows, num_lf, lf_matrix, LFViz.DATAPOINT_TYPE_IMAGE, datapoints);
 		reset_row_filter_mask();
 
 	}
@@ -249,6 +257,13 @@
 
 		compute_row_filter_mask(lf_select, lf_value); 
 		lfviz.set_row_filter_mask(row_filter_mask);
+	}
+
+	function handle_sort_change() {
+		var sort_box = document.getElementById("sort_data_selector");
+		var value = sort_box.value;
+		console.log('Sort changed to ' + value);
+		alert('Not implemented yet.');
 	}
 
 	function handle_onload() {
@@ -297,6 +312,16 @@
     <button id="make_selection" type="button" onclick="handle_clear_row_filter_mask()">Clear Filter</button>
 </div>
 
+<div>
+Sort rows by
+	<select id="sort_data_selector" onchange="handle_sort_change()">
+       <option value="sort_none">None</option>
+       <option value="sort_label_model">Label model score</option>
+       <option value="sort_num_positive">Num positive votes</option>
+       <option value="sort_num_negative">Num negative notes</option>
+       <option value="sort_num_abstain">Num abstains</option>
+    </select>
+</div>
 <div>
 	<button id="dummy_text_button" type="button" onclick="handle_create_dummy_text()">Create Dummy Text Data</button>
 	<button id="dummy_image_button" type="button" onclick="handle_create_dummy_images()">Create Dummy Image Data</button>
