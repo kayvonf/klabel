@@ -39,9 +39,8 @@
 	var INPUT_DATAPOINTS_URL = 'backhandslice_paths.json';
 	var INPUT_LF_INFO_URL = 'backhandslice_info.json';
 
-
 	var main_canvas_id = 'main_canvas';   // this is the DOM canvas element 
-	var preview_div_id = 'preview_div';   // this is the DOM canvas element 
+	var preview_div_id = 'preview_div';         
 	var lfviz = new LFViz;
 
 	///////////////////////////////////////////////////////////
@@ -197,7 +196,20 @@
 				var option = document.createElement("option");
 				option.text = lf_names[i];
 				select_box.add(option);
-		}
+			}
+
+			var data_info_el = document.getElementById('data_info');  
+			var contents = "<p>";
+			contents += "<div>Num rows: " + num_rows + "</div>";
+			contents += "<div>Num LFs: " + num_lf + "</div>";
+			contents += "<div>LF Names: ";
+			for (var i=0; i<num_lf; i++) {
+				contents += lf_names[i];
+				if (i < num_lf-1)
+					contents += ", "
+				}
+			contents += "</p>"
+			data_info_el.innerHTML = contents;
 
 			lfviz.set_data(num_rows, num_lf, lf_matrix, model_scores, datapoint_type, source_data);
 			reset_row_filter_mask();
@@ -514,6 +526,11 @@ Sort rows by
 </div>
 -->
 
+<h3>Dataset Info</h3>
+
+<div id="data_info"></div>
+
+<h3>Help</h3>
 <p>
 <div>Green - positive vote</div>
 <div>Red - positive vote</div>
