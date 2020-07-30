@@ -37,6 +37,8 @@
 	var INPUT_LF_MATRIX_URL = 'backhandslice_lfmatrix.json';
 	var INPUT_LM_SCORE_URL = 'backhandslice_lm.json';
 	var INPUT_DATAPOINTS_URL = 'backhandslice_paths.json';
+	var INPUT_LF_INFO_URL = 'backhandslice_info.json';
+
 
 	var main_canvas_id = 'main_canvas';   // this is the DOM canvas element 
 	var preview_div_id = 'preview_div';   // this is the DOM canvas element 
@@ -87,7 +89,7 @@
  		model_score = [];
  		source_data = [];
 
- 		pending_data_load_events = 3;
+ 		pending_data_load_events = 4;
 
  		fetch(BASEURL + INPUT_DATAPOINTS_URL)
  			.then(function(response) {
@@ -133,6 +135,30 @@
  			.catch(function(err) {
  				console.log('Error fetching LF matrix data: ', err);
  			});
+
+ 		fetch(BASEURL + INPUT_LF_INFO_URL)
+ 			.then(function(response) {
+ 				if (response.status !== 200) {
+ 					console.log("problem: " + response.status);
+ 				}
+ 				return response.json();
+			})
+			.then(function(data) {
+				parse_lf_info(data.labeling_functions);
+				handle_data_load_event();
+			})
+ 			.catch(function(err) {
+ 				console.log('Error fetching LF info: ', err);
+ 			});
+
+	}
+
+	function parse_lf_info(info) {
+		lf_names = [];
+		for (var i=0; i<info.length; i++) {
+			lf_names.push(info[i].name);
+			console.log(info[i].name);
+		}
 	}
 
 	function handle_data_load_event() {
@@ -165,6 +191,13 @@
 				lf_names.push("LF" + i);
 
 			console.log("Data load complete: " + num_rows + " rows, " + num_lf + " LFs");
+
+			var select_box = document.getElementById("select_lf");
+			for (var i=0; i<num_lf; i++) {
+				var option = document.createElement("option");
+				option.text = lf_names[i];
+				select_box.add(option);
+		}
 
 			lfviz.set_data(num_rows, num_lf, lf_matrix, model_scores, datapoint_type, source_data);
 			reset_row_filter_mask();
@@ -280,9 +313,7 @@
 			}
 
 		}
-
 	}
-
 
 	function reset_row_filter_mask() {
 		compute_row_filter_mask(-1, 0);
@@ -427,13 +458,6 @@
 
 	function handle_onload() {
 
-		var select_box = document.getElementById("select_lf");
-		for (var i=0; i<num_lf; i++) {
-			var option = document.createElement("option");
-			option.text = "LF" + i;
-			select_box.add(option);
-		}
-
 		var main_canvas = document.getElementById(main_canvas_id);
 		var preview_div = document.getElementById(preview_div_id);
 
@@ -452,7 +476,18 @@
 </div>
 
 <div style="clear: both;">
-	Highlight data points where 
+Sort rows by
+	<select id="sort_data_selector" onchange="handle_sort_change()">
+       <option value="sort_none">Original data order</option>
+       <option value="sort_label_model">Label model score</option>
+       <option value="sort_num_positive">Num positive votes</option>
+       <option value="sort_num_negative">Num negative votes</option>
+       <option value="sort_num_abstain">Num abstains</option>
+    </select>
+</div>
+
+<div>
+	Only show data points where 
 	<select id="select_lf">
        <option value="lf_all">all labeling funcs</option>
        <option value="lf_all_voting">all voting labeling funcs</option>
@@ -471,16 +506,7 @@
     <button id="make_selection" type="button" onclick="handle_clear_row_filter_mask()">Clear Filter</button>
 </div>
 
-<div>
-Sort rows by
-	<select id="sort_data_selector" onchange="handle_sort_change()">
-       <option value="sort_none">Original data order</option>
-       <option value="sort_label_model">Label model score</option>
-       <option value="sort_num_positive">Num positive votes</option>
-       <option value="sort_num_negative">Num negative votes</option>
-       <option value="sort_num_abstain">Num abstains</option>
-    </select>
-</div>
+
 <!--
 <div>
 	<button id="dummy_text_button" type="button" onclick="handle_create_dummy_text()">Create Dummy Text Data</button>
