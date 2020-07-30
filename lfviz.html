@@ -33,7 +33,7 @@
 	var LF_OUTPUT_ABSTAIN = 0;
 	var LF_OUTPUT_DISAGREE = -2;
 
-	var BASEURL = 'web_static/'
+	var BASEURL = 'lfviz_assets/'
 	var INPUT_LF_MATRIX_URL = 'backhandslice_lfmatrix.json';
 	var INPUT_LM_SCORE_URL = 'backhandslice_lm.json';
 	var INPUT_DATAPOINTS_URL = 'backhandslice_paths.json';
@@ -474,10 +474,10 @@
 <div>
 Sort rows by
 	<select id="sort_data_selector" onchange="handle_sort_change()">
-       <option value="sort_none">None</option>
+       <option value="sort_none">Original data order</option>
        <option value="sort_label_model">Label model score</option>
        <option value="sort_num_positive">Num positive votes</option>
-       <option value="sort_num_negative">Num negative notes</option>
+       <option value="sort_num_negative">Num negative votes</option>
        <option value="sort_num_abstain">Num abstains</option>
     </select>
 </div>

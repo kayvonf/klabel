@@ -2,7 +2,7 @@ import pickle
 import json
 
 
-PREFIX = "web_static/"
+PREFIX = "lfviz_assets/"
 INPUT_LF_MATRIX_FILENAME = "backhandslice.pkl"
 INPUT_PATH_FILENAME = "backhandpaths.pkl"
 
