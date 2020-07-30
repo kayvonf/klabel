@@ -2,7 +2,9 @@
 <html>
 <head>
 	<title>Labeling Function Viz</title>
+
 <style>
+
 	body {
 		font-family: Helvetica, Arial, sans-seris;
 		font-size: 10pt;
@@ -31,33 +33,39 @@
 	var LF_OUTPUT_ABSTAIN = 0;
 	var LF_OUTPUT_DISAGREE = -2;
 
+	var BASEURL = 'web_static/'
+	var INPUT_LF_MATRIX_URL = 'backhandslice_lfmatrix.json';
+	var INPUT_LM_SCORE_URL = 'backhandslice_lm.json';
+	var INPUT_DATAPOINTS_URL = 'backhandslice_paths.json';
+
 	var main_canvas_id = 'main_canvas';   // this is the DOM canvas element 
 	var preview_div_id = 'preview_div';   // this is the DOM canvas element 
 	var lfviz = new LFViz;
-	
-	// data passed to viz
-	var num_rows = 1024;
-	var num_lf = 5;
+
+	///////////////////////////////////////////////////////////
+	// input data 
+	///////////////////////////////////////////////////////////
+	var num_rows = 0;
+	var num_lf = 0;
+	var datapoint_type = LFViz.DATAPOINT_TYPE_IMAGE;
 
 	// the source data: text strings (if text), or an image url
 	var source_data = [];  
 	
 	// table of labeling function outputs
 	var lf_matrix = [];
-	var model_score  = [];
-
-	var row_sorting = [];
+	
+	// label model score
+	var model_scores  = [];
 
 	// human-readable names of the labeling functions
 	var lf_names = [];
-	for (var i=0; i<num_lf; i++) {
-		lf_names.push("LF" + i);
-	}
 
-	// for visualization only. This mask denoting the rows that should be
-	// rendered in the visualizer.
+	// This mask denoting the rows that should be rendered in the visualizer
 	var row_filter_mask = [];
 
+	// sorting of the rows in the visualizer
+	var row_sorting = [];
 
 	// sorting predicate
 	function sort_ascending_function(el1, el2) {
@@ -66,6 +74,101 @@
 		else if (el1[1] > el2[1])
 			return 1;
 		return 0;
+	}
+
+	function load_data() {
+
+		num_rows = 0;
+		num_lf = 0;
+		datapoint_type = LFViz.DATAPOINT_TYPE_IMAGE;
+
+		lf_matrix = [];
+ 		lf_names = [];
+ 		model_score = [];
+ 		source_data = [];
+
+ 		pending_data_load_events = 3;
+
+ 		fetch(BASEURL + INPUT_DATAPOINTS_URL)
+ 			.then(function(response) {
+ 				if (response.status !== 200) {
+ 					console.log("problem: " + response.status);
+ 				}
+ 				return response.json();
+			})
+			.then(function(data) {
+				source_data = data;
+				handle_data_load_event();
+			})
+ 			.catch(function(err) {
+ 				console.log('Error fetching datapoints: ', err);
+ 			});
+
+ 		fetch(BASEURL + INPUT_LM_SCORE_URL)
+ 			.then(function(response) {
+ 				if (response.status !== 200) {
+ 					console.log("problem: " + response.status);
+ 				}
+ 				return response.json();
+			})
+			.then(function(data) {
+				model_scores = data;
+				handle_data_load_event();
+			})
+ 			.catch(function(err) {
+ 				console.log('Error fetching LM output: ', err);
+ 			});
+
+ 		fetch(BASEURL + INPUT_LF_MATRIX_URL)
+ 			.then(function(response) {
+ 				if (response.status !== 200) {
+ 					console.log("problem: " + response.status);
+ 				}
+ 				return response.json();
+			})
+			.then(function(data) {
+				lf_matrix = data;
+				handle_data_load_event();
+			})
+ 			.catch(function(err) {
+ 				console.log('Error fetching LF matrix data: ', err);
+ 			});
+	}
+
+	function handle_data_load_event() {
+
+		pending_data_load_events--;
+
+		if (pending_data_load_events == 0) {
+
+			num_rows = lf_matrix.length;
+			if (num_rows > 0)
+				num_lf = lf_matrix[0].length;
+
+			var temp_lf_matrix = [];
+			for (var i=0; i<num_rows; i++) {
+				for (var j=0; j<num_lf; j++) {
+					temp_lf_matrix.push(lf_matrix[i][j]);
+				}
+			}
+			lf_matrix = temp_lf_matrix;
+
+			var temp_source_data = []
+			for (var i=0; i<num_rows; i++) {
+				temp_source_data.push(BASEURL + source_data[i]);
+			}
+			source_data = temp_source_data;
+
+	 		// give the LFs canonical names for now
+	 		// TODO: find some way to get the names from the data source
+			for (var i=0; i<num_lf; i++)
+				lf_names.push("LF" + i);
+
+			console.log("Data load complete: " + num_rows + " rows, " + num_lf + " LFs");
+
+			lfviz.set_data(num_rows, num_lf, lf_matrix, model_scores, datapoint_type, source_data);
+			reset_row_filter_mask();
+		}
 	}
 
     // HACK(kayvonf): This is a function that filters rows according to a predicate.
@@ -180,6 +283,7 @@
 
 	}
 
+
 	function reset_row_filter_mask() {
 		compute_row_filter_mask(-1, 0);
 		lfviz.set_row_filter_mask(row_filter_mask);
@@ -206,28 +310,30 @@
 	function handle_create_dummy_text() {
 		lf_matrix = [];
 		model_scores = [];
-		datapoints = [];
 		create_dummy_lf_data(num_rows, num_lf, lf_matrix, model_scores);
 
+		datapoints = [];
+		datapoint_type = LFViz.DATAPOINT_TYPE_TEXT;
 		for (var i=0; i<num_rows; i++) {
 			datapoints.push("This is the text string associated with datapoint " + i + " that the labeling functions were executed on.  LFViz will display the text on hover.");
 		}
 
-		lfviz.set_data(num_rows, num_lf, lf_matrix, model_scores, LFViz.DATAPOINT_TYPE_TEXT, datapoints);
+		lfviz.set_data(num_rows, num_lf, lf_matrix, model_scores, datapoint_type, datapoints);
 		reset_row_filter_mask();
 	}
 
 	function handle_create_dummy_images() {
 		lf_matrix = [];
 		model_scores = [];
-		datapoints = [];
 		create_dummy_lf_data(num_rows, num_lf, lf_matrix, model_scores);
 
+		datapoints = [];
+		datapoint_type = LFViz.DATAPOINT_TYPE_IMAGE;
 		for (var i=0; i<num_rows; i++) {
 			datapoints.push("media/image_0" + (i % 8) + ".jpg");
 		}
 
-		lfviz.set_data(num_rows, num_lf, lf_matrix, model_scores, LFViz.DATAPOINT_TYPE_IMAGE, datapoints);
+		lfviz.set_data(num_rows, num_lf, lf_matrix, model_scores, datapoint_type, datapoints);
 		reset_row_filter_mask();
 	}
 
@@ -332,7 +438,7 @@
 		var preview_div = document.getElementById(preview_div_id);
 
 		lfviz.init(main_canvas, preview_div);
-		handle_create_dummy_images();  // populate viewer with dummy image data
+		load_data();
 	}
 
 </script>

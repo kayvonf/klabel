@@ -26,6 +26,7 @@ class LFViz {
 		// visualization
 		this.row_filter_mask = null;
 		this.row_sorting = null;
+		this.last_hover_idx = -1;
 
 		// color constants
 		this.color_main_canvas = '#e0e0e0';
@@ -171,31 +172,39 @@ class LFViz {
 	// Pretty print the LF and label model results and display the
 	// source data (either a text string or an image)
 	update_preview() {
+
 		if (this.is_hovering()) {
 			var idx = this.get_highlighted_datapoint();
+
 			if (idx >= 0) {
-				var str = "<p>Datapoint: " + idx + " of " + this.num_rows + "<p/>";
 
-				var base = this.num_lf*idx;
-				str += "<p>";
-				str += "<div>LM score: "+ this.model_scores[idx].toPrecision(4) + "</div>"
-				str += "<div>LF votes: ";
-				for (var i=0;i<this.num_lf; i++) {
-					str += this.data_matrix[base + i];
-					if (i < this.num_lf-1)
-						str += ", "; 
-				}
-				str += "</div>";
-				str += "</p>";
+				if (idx != this.last_hover_idx) {
 
-				if (this.datapoint_type == LFViz.DATAPOINT_TYPE_TEXT)
-					str += "<p>" + this.datapoints[idx] + "</p>";
-				else if (this.datapoint_type == LFViz.DATAPOINT_TYPE_IMAGE)
-					str += "<p><img src=\"" + this.datapoints[idx] + "\" width=\"" +
-                           this.preview_div_el.clientWidth + "\" /></p>";
+					var str = "<p>Datapoint: " + idx + " of " + this.num_rows + "<p/>";
 
-                this.preview_div_el.innerHTML = str;
+					var base = this.num_lf*idx;
+					str += "<p>";
+					str += "<div>LM score: "+ this.model_scores[idx].toPrecision(4) + "</div>"
+					str += "<div>LF votes: ";
+					for (var i=0;i<this.num_lf; i++) {
+						str += this.data_matrix[base + i];
+						if (i < this.num_lf-1)
+							str += ", "; 
+					}
+					str += "</div>";
+					str += "</p>";
+
+					if (this.datapoint_type == LFViz.DATAPOINT_TYPE_TEXT)
+						str += "<p>" + this.datapoints[idx] + "</p>";
+					else if (this.datapoint_type == LFViz.DATAPOINT_TYPE_IMAGE)
+						str += "<p><img src=\"" + this.datapoints[idx] + "\" width=\"" +
+	                           this.preview_div_el.clientWidth + "\" /></p>";
+
+	                this.last_hover_idx = idx;
+                	this.preview_div_el.innerHTML = str;
+            	}
 			}
+			
 			else {
 				this.preview_div_el.innerHTML = "";
 			}
