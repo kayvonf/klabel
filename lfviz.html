@@ -20,6 +20,10 @@
 		font-weight: bold;
 	}
 
+	.red_highlight {
+		color: #ff0000;
+	}
+
 </style>
 
 <script src="kmath.js"></script>
@@ -603,24 +607,22 @@ Sort rows by
 </div>
 
 
-<!--
-<div>
-	<button id="dummy_text_button" type="button" onclick="handle_create_dummy_text()">Create Dummy Text Data</button>
-	<button id="dummy_image_button" type="button" onclick="handle_create_dummy_images()">Create Dummy Image Data</button>
-</div>
--->
-
 <h3>Dataset Info</h3>
 
 <div id="data_info"></div>
 
 <h3>Help</h3>
+
+<p>
+	<div>Hover over a row to see the data point.</div>
+	<div>Click to "lock in" a selection of a data point.</div>
+</p>
+
 <p>
 <div>Green - positive vote</div>
 <div>Red - positive vote</div>
 <div>Gray - abstain</div>
 </p>
-<p>Hover over a row to see the data point.</p>
 
 </body>
 </html>
