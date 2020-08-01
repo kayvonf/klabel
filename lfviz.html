@@ -257,7 +257,7 @@
 				var idx = i*num_lf;
 				row_filter_mask[i] = true;
 				for (var j=0; j<num_lf; j++) {
-					if (lf_matrix[idx + j] != criteria || lf_matrix[idx+j] == LF_OUTPUT_DISAGREE)
+					if (lf_matrix_noext[idx + j] != criteria || lf_matrix_noext[idx+j] == LF_OUTPUT_DISAGREE)
 						row_filter_mask[i] = false;
 				}
 			}
@@ -274,11 +274,11 @@
 				row_filter_mask[i] = true;
 
 				for (var j=0; j<num_lf; j++) {
-					if (lf_matrix[idx + j] == LF_OUTPUT_ABSTAIN)
+					if (lf_matrix_noext[idx + j] == LF_OUTPUT_ABSTAIN)
 						continue;
 					
 					num_votes++;
-					if (lf_matrix[idx + j] != criteria || lf_matrix[idx+j] == LF_OUTPUT_DISAGREE)
+					if (lf_matrix_noext[idx + j] != criteria || lf_matrix_noext[idx+j] == LF_OUTPUT_DISAGREE)
 						row_filter_mask[i] = false;
 				}
 
@@ -300,14 +300,14 @@
 					if (disagree_check) {
 						for (var k=0; k<num_lf; k++) {
 							if (j != k && 
-								lf_matrix[idx+j] != LF_OUTPUT_ABSTAIN && lf_matrix[idx+k] != LF_OUTPUT_ABSTAIN &&
-								lf_matrix[idx+j] != lf_matrix[idx+k]) {
+								lf_matri_noext[idx+j] != LF_OUTPUT_ABSTAIN && lf_matrix_noext[idx+k] != LF_OUTPUT_ABSTAIN &&
+								lf_matrix_noext[idx+j] != lf_matrix_noext[idx+k]) {
 								row_filter_mask[i] = true; 
 							}
 						}
 
 					} else {
-						if (lf_matrix[idx + j] == criteria)
+						if (lf_matrix_noext[idx + j] == criteria)
 							row_filter_mask[i] = true;
 					}
 				}
@@ -325,14 +325,14 @@
 				if (disagree_check) {
 					for (var k=0; k<num_lf; k++) {
 						if (lf_function != k &&
-							lf_matrix[idx+lf_function] != LF_OUTPUT_ABSTAIN && lf_matrix[idx+k] != LF_OUTPUT_ABSTAIN &&
-							lf_matrix[idx+lf_function] != lf_matrix[idx+k]) {
+							lf_matrix_noext[idx+lf_function] != LF_OUTPUT_ABSTAIN && lf_matrix_noext[idx+k] != LF_OUTPUT_ABSTAIN &&
+							lf_matrix_noext[idx+lf_function] != lf_matrix_noext[idx+k]) {
 							row_filter_mask[i] = true; 
 						}
 					}
 
 				} else {
-					if (lf_matrix[idx + lf_function] == criteria)
+					if (lf_matrix_noext[idx + lf_function] == criteria)
 						row_filter_mask[i] = true;
 				}
 			}
@@ -450,18 +450,18 @@
 
 			var value = i;
 			if (sort_value == "sort_label_model")
-				value = model_scores[i];
+				value = prob_labels_noext[i];
 			else {
 				var num_positive = 0;
 				var num_negative = 0;
 				var num_abstain = 0;
 				for (var j=0; j<num_lf; j++) {
 					var idx = i*num_lf + j;
-					if (lf_matrix[idx] == 0)
+					if (lf_matrix_noext[idx] == 0)
 						num_abstain++;
-					else if (lf_matrix[idx] == 1)
+					else if (lf_matrix_noext[idx] == 1)
 						num_positive++;
-					else if (lf_matrix[idx] == -1)
+					else if (lf_matrix_noext[idx] == -1)
 						num_negative++;
 				}
 
@@ -500,7 +500,7 @@
 <body onload="handle_onload()">
 
 <div id="labeled_div">
-	<canvas id="main_canvas" width="1100" height="550" style="border: 1px solid #c0c0c0; display: block; float: left;" ></canvas>
+	<canvas id="main_canvas" width="940" height="550" style="border: 1px solid #c0c0c0; display: block; float: left;" ></canvas>
 	<div id="preview_div" style="padding-left: 5px; width: 256px; height: 500px; float: left;">&nbsp;</div>
 </div>
 

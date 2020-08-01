@@ -36,9 +36,9 @@ class LFViz {
 		this.color_highlight_box_outline = 'rgba(0.0, 0.0, 0.0, 1.0)';
 
 		// layout parameters
-		this.display_el_width = 8;
-		this.display_el_height = 8;
-		this.display_col_sep = 8;
+		this.display_el_width = 6;
+		this.display_el_height = 6;
+		this.display_col_sep = 6;
 
 	}
 
