@@ -33,40 +33,47 @@
 	var LF_OUTPUT_ABSTAIN = 0;
 	var LF_OUTPUT_DISAGREE = -2;
 
-	var BASEURL = 'lfviz_assets/'
-	var INPUT_LF_MATRIX_URL = 'backhandslice_lfmatrix.json';
-	var INPUT_LM_SCORE_URL = 'backhandslice_lm.json';
-	var INPUT_DATAPOINTS_URL = 'backhandslice_paths.json';
-	var INPUT_LF_INFO_URL = 'backhandslice_info.json';
-
 	var main_canvas_id = 'main_canvas';   // this is the DOM canvas element 
 	var preview_div_id = 'preview_div';         
 	var lfviz = new LFViz;
 
 	///////////////////////////////////////////////////////////
-	// input data 
+	// input data (from the debug dump) 
 	///////////////////////////////////////////////////////////
-	var num_rows = 0;
-	var num_lf = 0;
-	var datapoint_type = LFViz.DATAPOINT_TYPE_IMAGE;
 
-	// the source data: text strings (if text), or an image url
-	var source_data = [];  
-	
-	// table of labeling function outputs
-	var lf_matrix = [];
-	
-	// label model score
-	var model_scores  = [];
+	var INPUT_BASE_URL = 'lfviz_assets/';
+	var DUMP_NAME = "backhand";
+
+	var num_train = 0;
+	var num_val = 0;
+	var num_lf = 0;
 
 	// human-readable names of the labeling functions
 	var lf_names = [];
+
+	// the source data: text strings (if text), or an image url
+	var datapoint_type = LFViz.DATAPOINT_TYPE_IMAGE;
+	var datapoints = [];  
+	
+	// table of labeling function outputs
+	var lf_matrix_noext = [];
+	var lf_matrix_ext = [];
+	
+	// label model output
+	var prob_labels_noext  = [];
+	var prob_labels_ext  = [];
+
+	///////////////////////////////////////////////////////////
+	// viz application state
+	///////////////////////////////////////////////////////////
 
 	// This mask denoting the rows that should be rendered in the visualizer
 	var row_filter_mask = [];
 
 	// sorting of the rows in the visualizer
 	var row_sorting = [];
+
+	var pending_data_load_events = 0;
 
 	// sorting predicate
 	function sort_ascending_function(el1, el2) {
@@ -77,87 +84,106 @@
 		return 0;
 	}
 
-	function load_data() {
+	function handle_dump_info_file_loaded(info) {
 
-		num_rows = 0;
-		num_lf = 0;
-		datapoint_type = LFViz.DATAPOINT_TYPE_IMAGE;
+		num_lf = info.num_lf;
+		num_train = info.num_train;
+		num_val = info.num_val;
+		lf_names = info.lf_names;
 
-		lf_matrix = [];
- 		lf_names = [];
- 		model_score = [];
- 		source_data = [];
-
- 		pending_data_load_events = 4;
-
- 		fetch(BASEURL + INPUT_DATAPOINTS_URL)
- 			.then(function(response) {
- 				if (response.status !== 200) {
- 					console.log("problem: " + response.status);
- 				}
- 				return response.json();
-			})
-			.then(function(data) {
-				source_data = data;
-				handle_data_load_event();
-			})
- 			.catch(function(err) {
- 				console.log('Error fetching datapoints: ', err);
- 			});
-
- 		fetch(BASEURL + INPUT_LM_SCORE_URL)
- 			.then(function(response) {
- 				if (response.status !== 200) {
- 					console.log("problem: " + response.status);
- 				}
- 				return response.json();
-			})
-			.then(function(data) {
-				model_scores = data;
-				handle_data_load_event();
-			})
- 			.catch(function(err) {
- 				console.log('Error fetching LM output: ', err);
- 			});
-
- 		fetch(BASEURL + INPUT_LF_MATRIX_URL)
- 			.then(function(response) {
- 				if (response.status !== 200) {
- 					console.log("problem: " + response.status);
- 				}
- 				return response.json();
-			})
-			.then(function(data) {
-				lf_matrix = data;
-				handle_data_load_event();
-			})
- 			.catch(function(err) {
- 				console.log('Error fetching LF matrix data: ', err);
- 			});
-
- 		fetch(BASEURL + INPUT_LF_INFO_URL)
- 			.then(function(response) {
- 				if (response.status !== 200) {
- 					console.log("problem: " + response.status);
- 				}
- 				return response.json();
-			})
-			.then(function(data) {
-				parse_lf_info(data.labeling_functions);
-				handle_data_load_event();
-			})
- 			.catch(function(err) {
- 				console.log('Error fetching LF info: ', err);
- 			});
-
+		if (info.datatype == "string")
+			datapoint_type = LFViz.DATAPOINT_TYPE_STRING;
+		else if (info.datatype == "image_url")
+			datapoint_type = LFViz.DATAPOINT_TYPE_IMAGE_URL;
+		else 
+			datapoint_Type = LFViz.DATAPOINT_TYPE_NONE;
 	}
 
-	function parse_lf_info(info) {
+	function load_data() {
+
+		num_train = 0;
+		num_val = 0;
+		num_lf = 0;
+		datapoint_type = LFViz.DATAPOINT_TYPE_IMAGE;
 		lf_names = [];
-		for (var i=0; i<info.length; i++) {
-			lf_names.push(info[i].name);
-			console.log(info[i].name);
-		}
+
+		lf_matrix_noext = [];
+		lf_matrix_ext = [];
+  		prob_labels_noext = [];
+  		prob_labels_ext = [];
+ 		datapoints = [];
+
+ 		pending_data_load_events = 3;
+
+		var dump_info_url = INPUT_BASE_URL + DUMP_NAME + '.json';
+
+ 		fetch(dump_info_url)
+ 			.then(function(response) {
+ 				if (response.status !== 200) {
+ 					console.log("problem: " + response.status);
+ 				}
+ 				return response.json();
+			})
+			.then(function(data) {
+
+				handle_dump_info_file_loaded(data);
+
+				// now kick off all the data file loads
+				var lf_matrix_noext_url = INPUT_BASE_URL + DUMP_NAME + '_lfmatrix_noext.json';
+				var prob_labels_noext_url = INPUT_BASE_URL + DUMP_NAME + '_prob_labels_noext.json';
+				// var lf_matrix_ext_url = INPUT_BASE_URL + DUMPNAME + '_lfmatrix_ext.json';
+				//var prob_labels_ext_url = INPUT_BASE_URL + DUMPNAME + '_prob_labels_ext.json';
+				var datapoints_url = INPUT_BASE_URL + DUMP_NAME + '_datapoints.json';	
+
+		 		fetch(datapoints_url)
+		 			.then(function(response) {
+		 				if (response.status !== 200) {
+		 					console.log("problem: " + response.status);
+		 				}
+		 				return response.json();
+					})
+					.then(function(data) {
+						datapoints = data;
+						handle_data_load_event();
+					})
+		 			.catch(function(err) {
+		 				console.log('Error fetching datapoints: ', err);
+		 			});
+
+		 		fetch(prob_labels_noext_url)
+		 			.then(function(response) {
+		 				if (response.status !== 200) {
+		 					console.log("problem: " + response.status);
+		 				}
+		 				return response.json();
+					})
+					.then(function(data) {
+						prob_labels_noext = data;
+						handle_data_load_event();
+					})
+		 			.catch(function(err) {
+		 				console.log('Error fetching LM (noext) output: ', err);
+		 			});
+
+		 		fetch(lf_matrix_noext_url)
+		 			.then(function(response) {
+		 				if (response.status !== 200) {
+		 					console.log("problem: " + response.status);
+		 				}
+		 				return response.json();
+					})
+					.then(function(data) {
+						lf_matrix_noext = data;
+						handle_data_load_event();
+					})
+		 			.catch(function(err) {
+		 				console.log('Error fetching LF matrix (noext) data: ', err);
+		 			});
+
+			})
+ 			.catch(function(err) {
+ 				console.log('Error fetching info file: ', err);
+ 			});
 	}
 
 	function handle_data_load_event() {
@@ -166,30 +192,14 @@
 
 		if (pending_data_load_events == 0) {
 
-			num_rows = lf_matrix.length;
-			if (num_rows > 0)
-				num_lf = lf_matrix[0].length;
-
-			var temp_lf_matrix = [];
-			for (var i=0; i<num_rows; i++) {
-				for (var j=0; j<num_lf; j++) {
-					temp_lf_matrix.push(lf_matrix[i][j]);
-				}
+			var num_total = num_train + num_val;
+			var temp_datapoints = []
+			for (var i=0; i<num_total; i++) {
+				temp_datapoints.push(INPUT_BASE_URL + datapoints[i]);
 			}
-			lf_matrix = temp_lf_matrix;
+			datapoints = temp_datapoints;
 
-			var temp_source_data = []
-			for (var i=0; i<num_rows; i++) {
-				temp_source_data.push(BASEURL + source_data[i]);
-			}
-			source_data = temp_source_data;
-
-	 		// give the LFs canonical names for now
-	 		// TODO: find some way to get the names from the data source
-			for (var i=0; i<num_lf; i++)
-				lf_names.push("LF" + i);
-
-			console.log("Data load complete: " + num_rows + " rows, " + num_lf + " LFs");
+			console.log("Data load complete: train size=" + num_train + ", val size=" + num_val + ", num LFs=" + num_lf);
 
 			var select_box = document.getElementById("select_lf");
 			for (var i=0; i<num_lf; i++) {
@@ -200,7 +210,8 @@
 
 			var data_info_el = document.getElementById('data_info');  
 			var contents = "<p>";
-			contents += "<div>Num rows: " + num_rows + "</div>";
+			contents += "<div>Num train: " + num_train + "</div>";
+			contents += "<div>Num val: " + num_val + "</div>";
 			contents += "<div>Num LFs: " + num_lf + "</div>";
 			contents += "<div>LF Names: ";
 			for (var i=0; i<num_lf; i++) {
@@ -211,7 +222,7 @@
 			contents += "</p>"
 			data_info_el.innerHTML = contents;
 
-			lfviz.set_data(num_rows, num_lf, lf_matrix, model_scores, datapoint_type, source_data);
+			lfviz.set_data(num_total, num_lf, lf_matrix_noext, prob_labels_noext, datapoint_type, datapoints);
 			reset_row_filter_mask();
 		}
 	}
@@ -227,11 +238,13 @@
 		if (criteria == -2)
 			disagree_check = true;
 
+		var num_total = num_train + num_val;
+
 		//
 		// no filter
 		//
 		if (lf_function == -1) {  		
-			for (var i=0; i<num_rows; i++) {
+			for (var i=0; i<num_total; i++) {
 				row_filter_mask[i] = true;
 			}
 
@@ -240,7 +253,7 @@
 		//
 		} else if (lf_function == -2) {  
 
-			for (var i=0; i<num_rows; i++) {
+			for (var i=0; i<num_total; i++) {
 				var idx = i*num_lf;
 				row_filter_mask[i] = true;
 				for (var j=0; j<num_lf; j++) {
@@ -254,7 +267,7 @@
 		//
 		} else if (lf_function == -3) { 	
 
-			for (var i=0; i<num_rows; i++) {
+			for (var i=0; i<num_total; i++) {
 				var idx = i*num_lf;
 				var num_votes = 0;
 
@@ -279,7 +292,7 @@
 		//
 		} else if (lf_function == -4) {
 
-			for (var i=0; i<num_rows; i++) {
+			for (var i=0; i<num_total; i++) {
 				var idx = i*num_lf;
 				row_filter_mask[i] = false;
 				for (var j=0; j<num_lf; j++) {
@@ -305,7 +318,7 @@
  		//
 		} else {
 
-			for (var i=0; i<num_rows; i++) {
+			for (var i=0; i<num_total; i++) {
 				var idx = i*num_lf;
 				row_filter_mask[i] = false;
 
@@ -332,6 +345,7 @@
 		lfviz.set_row_filter_mask(row_filter_mask);
 	}
 
+	/*
 	function create_dummy_lf_data(num_rows, num_lf, lf_matrix, model_scores) {
 		for (var i = 0; i<num_rows; i++) {
 			for (var j=0; j<num_lf; j++) {
@@ -379,6 +393,7 @@
 		lfviz.set_data(num_rows, num_lf, lf_matrix, model_scores, datapoint_type, datapoints);
 		reset_row_filter_mask();
 	}
+	*/
 
 	function handle_clear_row_filter_mask() {
 		reset_row_filter_mask();
@@ -428,8 +443,10 @@
 		var sort_value = sort_box.value;
 		console.log('Sort changed to ' + sort_value);
 
+		var num_total = num_train + num_val;
+
 		var index_list = [];
-		for (var i=0; i<num_rows; i++) {
+		for (var i=0; i<num_total; i++) {
 
 			var value = i;
 			if (sort_value == "sort_label_model")
@@ -461,7 +478,7 @@
 		index_list.sort(sort_ascending_function);
 
 		row_sorting = [];
-		for (var i=0; i<num_rows; i++) {
+		for (var i=0; i<num_total; i++) {
 			row_sorting.push(index_list[i][0]);
 		}
 
@@ -483,7 +500,7 @@
 <body onload="handle_onload()">
 
 <div id="labeled_div">
-	<canvas id="main_canvas" width="960" height="500" style="border: 1px solid #c0c0c0; display: block; float: left;" ></canvas>
+	<canvas id="main_canvas" width="1100" height="550" style="border: 1px solid #c0c0c0; display: block; float: left;" ></canvas>
 	<div id="preview_div" style="padding-left: 5px; width: 256px; height: 500px; float: left;">&nbsp;</div>
 </div>
 

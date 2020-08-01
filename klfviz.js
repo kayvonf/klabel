@@ -6,7 +6,7 @@ class LFViz {
 
 	static get DATAPOINT_TYPE_NONE() { return 0; }
 	static get DATAPOINT_TYPE_TEXT() { return 1; }
-	static get DATAPOINT_TYPE_IMAGE() { return 2; }
+	static get DATAPOINT_TYPE_IMAGE_URL() { return 2; }
 
 	constructor() {
 		this.main_canvas_el = null;
@@ -196,7 +196,7 @@ class LFViz {
 
 					if (this.datapoint_type == LFViz.DATAPOINT_TYPE_TEXT)
 						str += "<p>" + this.datapoints[idx] + "</p>";
-					else if (this.datapoint_type == LFViz.DATAPOINT_TYPE_IMAGE)
+					else if (this.datapoint_type == LFViz.DATAPOINT_TYPE_IMAGE_URL)
 						str += "<p><img src=\"" + this.datapoints[idx] + "\" width=\"" +
 	                           this.preview_div_el.clientWidth + "\" /></p>";
 
