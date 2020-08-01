@@ -184,6 +184,17 @@ class LFViz {
 
 					var base = this.num_lf*idx;
 					str += "<p>";
+					if (this.ground_truth_labels.length != 0) {
+						str += "<div>Ground truth: ";
+
+						if (this.ground_truth_labels[idx] == 1)
+							str += "True";
+						else if (this.ground_truth_labels[idx] == -1)
+							str += "False";
+						else 
+							str += "Unknown";
+						str += "</div>";
+					}
 					str += "<div>LM score: "+ this.model_scores[idx].toPrecision(4) + "</div>"
 					str += "<div>LF votes: ";
 					for (var i=0;i<this.num_lf; i++) {
@@ -213,11 +224,12 @@ class LFViz {
 
 	// Update the input data for the visualizer.
 	// Currently, updating the input data resets both the row filter mask and the row sorting
-	set_data(num_rows, num_lf, matrix, model_scores, datapoint_type=LFViz.DATAPOINT_TYPE_NONE, datapoints=[]) {
+	set_data(num_rows, num_lf, matrix, model_scores, gt_labels=[], datapoint_type=LFViz.DATAPOINT_TYPE_NONE, datapoints=[]) {
 		this.num_rows = num_rows;
 		this.num_lf = num_lf;
 		this.data_matrix = matrix;
 		this.model_scores = model_scores;
+		this.ground_truth_labels = gt_labels;
 		this.datapoint_type = datapoint_type;
 		this.datapoints = datapoints;
 
