@@ -103,12 +103,12 @@ class WeakDBDump:
 		for row in lf_train_data:
 			for lf in range(self.num_lf):
 				self.lf_matrix.append(row[lf])
-				self.prob_labels.append(row[2*self.num_lf])
+			self.prob_labels.append(row[2*self.num_lf])
 
 		for row in lf_val_data:
 			for lf in range(self.num_lf):
 				self.lf_matrix.append(row[lf])
-				self.prob_labels.append(row[2*self.num_lf])
+			self.prob_labels.append(row[2*self.num_lf])
 
 		# convert post-extension results
 		self.extended_lf_matrix = []
@@ -116,12 +116,12 @@ class WeakDBDump:
 		for row in lf_train_data:
 			for lf in range(self.num_lf):
 				self.extended_lf_matrix.append(row[self.num_lf + lf])
-				self.extended_prob_labels.append(row[2*self.num_lf+1])
+			self.extended_prob_labels.append(row[2*self.num_lf+1])
 
 		for row in lf_val_data:
 			for lf in range(self.num_lf):
 				self.extended_lf_matrix.append(row[self.num_lf + lf])
-				self.extended_prob_labels.append(row[2*self.num_lf+1])
+			self.extended_prob_labels.append(row[2*self.num_lf+1])
 
 		# now process the datapoint descriptors
 		self.datapoints = []
