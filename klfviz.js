@@ -107,8 +107,8 @@ class LFViz {
 			return -1;
 	}
 
-	// Render the matrix part of the visualization and cache the results in an image.
-	// Rendering many boxes can bge expensive, so the point of this caching is to avoid
+	// Render the matrix visualization and cache the results in an image.
+	// Rendering many boxes can be expensive, so the point of this caching is to avoid
 	// having to draw all the visual elements of the visualization on every mouse move.
 	render_cached_viz() {
 
@@ -151,7 +151,7 @@ class LFViz {
 			}
 		}
 
-		// store off what was just rendered into an image
+		// store off what was just rendered into an image so it does not need to be rerendered each frame
 		this.cached_canvas_image = ctx.getImageData(0, 0, this.main_canvas_el.width, this.main_canvas_el.height);
 	}
 
@@ -163,12 +163,12 @@ class LFViz {
 		ctx.fillStyle = this.color_main_canvas;
 		ctx.fillRect(0, 0, this.main_canvas_el.width, this.main_canvas_el.height);
 
-		// draw the cached image previously rendered
+		// draw the cached image of the grid visualization (previously rendered)
 		ctx.putImageData(this.cached_canvas_image, 0, 0);
 
 		// If there is a current selection, highlight it.
 		// If there is no current selection, check to see if the cursor is
-		// hovering over any datapoint row. If so, highlight the row being hovered over.
+		// hovering over a datapoint row. If so, highlight the row being hovered over.
 		var idx = this.cur_selection_idx; 
 		var viz_idx = this.cur_selection_viz_idx;
 

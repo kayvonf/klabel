@@ -145,7 +145,7 @@
 			contents += lf_names[i];
 			if (i < num_lf-1)
 				contents += ", "
-			}
+		}
 		contents += "</p>"
 		data_info_el.innerHTML = contents;			
 
@@ -192,12 +192,13 @@
 				handle_info_file_loaded(data);
 
 				// now kick off all the individual data file loads
-				var lf_matrix_noext_url = INPUT_BASE_URL + DUMP_NAME + '_lfmatrix_noext.json';
-				var prob_labels_noext_url = INPUT_BASE_URL + DUMP_NAME + '_prob_labels_noext.json';
-				var lf_matrix_ext_url = INPUT_BASE_URL + DUMP_NAME + '_lfmatrix_ext.json';
-				var prob_labels_ext_url = INPUT_BASE_URL + DUMP_NAME + '_prob_labels_ext.json';
-				var datapoints_url = INPUT_BASE_URL + DUMP_NAME + '_datapoints.json';
-				var ground_truth_labels_url = INPUT_BASE_URL + DUMP_NAME + '_ground_truth_labels.json';
+				var prefix = INPUT_BASE_URL + DUMP_NAME;
+				var lf_matrix_noext_url = prefix + '_lfmatrix_noext.json';
+				var prob_labels_noext_url = prefix + '_prob_labels_noext.json';
+				var lf_matrix_ext_url = prefix + '_lfmatrix_ext.json';
+				var prob_labels_ext_url = prefix + '_prob_labels_ext.json';
+				var datapoints_url = prefix + '_datapoints.json';
+				var ground_truth_labels_url = prefix + '_ground_truth_labels.json';
 
 		 		fetch(datapoints_url)
 		 			.then(function(response) {
