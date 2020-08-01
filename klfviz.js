@@ -36,9 +36,9 @@ class LFViz {
 		this.color_highlight_box_outline = 'rgba(0.0, 0.0, 0.0, 1.0)';
 
 		// layout parameters
-		this.display_el_width = 6;
-		this.display_el_height = 6;
-		this.display_col_sep = 6;
+		this.display_el_width = 7;
+		this.display_el_height = 7;
+		this.display_col_sep = 7;
 
 	}
 
@@ -276,7 +276,6 @@ class LFViz {
 
 	init(main_canvas_el, preview_div_el) {
 
-		console.log("KLFViz: initializing...");
 		this.main_canvas_el = main_canvas_el;
 
 		this.main_canvas_el.addEventListener("mousemove", this.handle_canvas_mousemove, false);

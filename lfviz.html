@@ -28,40 +28,43 @@
 <script>
 
 	// hacky enum
-	var LF_OUTPUT_POSITIVE = 1;
-	var LF_OUTPUT_NEGATIVE = -1;
+	var LF_OUTPUT_POSITIVE = 1
+	var LF_OUTPUT_NEGATIVE = -1
 	var LF_OUTPUT_ABSTAIN = 0;
-	var LF_OUTPUT_DISAGREE = -2;
+	var LF_OUTPUT_DISAGREE = -2
 
-	var main_canvas_id = 'main_canvas';   // this is the DOM canvas element 
-	var preview_div_id = 'preview_div';         
+	var main_canvas_id = 'main_canvas'   // this is the DOM canvas element 
+	var preview_div_id = 'preview_div'         
 	var lfviz = new LFViz;
 
 	///////////////////////////////////////////////////////////
 	// input data (from the debug dump) 
 	///////////////////////////////////////////////////////////
 
-	var INPUT_BASE_URL = 'lfviz_assets/';
-	var DUMP_NAME = "backhand";
+	var INPUT_BASE_URL = 'lfviz_assets/'
+	var DUMP_NAME = "backhand"
 
 	var num_train = 0;
 	var num_val = 0;
 	var num_lf = 0;
 
 	// human-readable names of the labeling functions
-	var lf_names = [];
+	var lf_names = []
 
 	// the source data: text strings (if text), or an image url
 	var datapoint_type = LFViz.DATAPOINT_TYPE_IMAGE;
-	var datapoints = [];  
+	var datapoints = []
 	
 	// table of labeling function outputs
-	var lf_matrix_noext = [];
-	var lf_matrix_ext = [];
+	var lf_matrix_noext = []
+	var lf_matrix_ext = []
 	
 	// label model output
-	var prob_labels_noext  = [];
-	var prob_labels_ext  = [];
+	var prob_labels_noext  = []
+	var prob_labels_ext  = []
+
+	// ground truth label
+	var ground_truth_labels = []
 
 	///////////////////////////////////////////////////////////
 	// viz application state
@@ -74,6 +77,7 @@
 	var row_sorting = [];
 
 	var pending_data_load_events = 0;
+
 
 	// sorting predicate
 	function sort_ascending_function(el1, el2) {
@@ -111,9 +115,10 @@
 		lf_matrix_ext = [];
   		prob_labels_noext = [];
   		prob_labels_ext = [];
+  		ground_truth_labels = []
  		datapoints = [];
 
- 		pending_data_load_events = 3;
+ 		pending_data_load_events = 6;
 
 		var dump_info_url = INPUT_BASE_URL + DUMP_NAME + '.json';
 
@@ -131,9 +136,10 @@
 				// now kick off all the data file loads
 				var lf_matrix_noext_url = INPUT_BASE_URL + DUMP_NAME + '_lfmatrix_noext.json';
 				var prob_labels_noext_url = INPUT_BASE_URL + DUMP_NAME + '_prob_labels_noext.json';
-				// var lf_matrix_ext_url = INPUT_BASE_URL + DUMPNAME + '_lfmatrix_ext.json';
-				//var prob_labels_ext_url = INPUT_BASE_URL + DUMPNAME + '_prob_labels_ext.json';
-				var datapoints_url = INPUT_BASE_URL + DUMP_NAME + '_datapoints.json';	
+				var lf_matrix_ext_url = INPUT_BASE_URL + DUMP_NAME + '_lfmatrix_ext.json';
+				var prob_labels_ext_url = INPUT_BASE_URL + DUMP_NAME + '_prob_labels_ext.json';
+				var datapoints_url = INPUT_BASE_URL + DUMP_NAME + '_datapoints.json';
+				var ground_truth_labels_url = INPUT_BASE_URL + DUMP_NAME + '_ground_truth_labels.json';
 
 		 		fetch(datapoints_url)
 		 			.then(function(response) {
@@ -165,6 +171,21 @@
 		 				console.log('Error fetching LM (noext) output: ', err);
 		 			});
 
+		 		fetch(prob_labels_ext_url)
+		 			.then(function(response) {
+		 				if (response.status !== 200) {
+		 					console.log("problem: " + response.status);
+		 				}
+		 				return response.json();
+					})
+					.then(function(data) {
+						prob_labels_ext = data;
+						handle_data_load_event();
+					})
+		 			.catch(function(err) {
+		 				console.log('Error fetching LM (ext) output: ', err);
+		 			});
+
 		 		fetch(lf_matrix_noext_url)
 		 			.then(function(response) {
 		 				if (response.status !== 200) {
@@ -180,10 +201,77 @@
 		 				console.log('Error fetching LF matrix (noext) data: ', err);
 		 			});
 
+		 		fetch(lf_matrix_ext_url)
+		 			.then(function(response) {
+		 				if (response.status !== 200) {
+		 					console.log("problem: " + response.status);
+		 				}
+		 				return response.json();
+					})
+					.then(function(data) {
+						lf_matrix_ext = data;
+						handle_data_load_event();
+					})
+		 			.catch(function(err) {
+		 				console.log('Error fetching LF matrix (ext) data: ', err);
+		 			});
+
+		 		fetch(ground_truth_labels_url)
+		 			.then(function(response) {
+		 				if (response.status !== 200) {
+		 					console.log("problem: " + response.status);
+		 				}
+		 				return response.json();
+					})
+					.then(function(data) {
+						ground_truth_labels = data;
+						handle_data_load_event();
+					})
+		 			.catch(function(err) {
+		 				console.log('Error fetching ground truth data: ', err);
+		 			});
+
 			})
  			.catch(function(err) {
  				console.log('Error fetching info file: ', err);
  			});
+	}
+
+	function check_data_sanity() {
+
+		var num_total = num_train + num_val;
+		var check_passed = true;
+
+		if (lf_names.length != num_lf) {
+			console.log("Unexpected number of labeling function names. Expected " + num_lf + ", data has " + lf_names.length);
+			check_passed = false;
+
+		} else if (datapoints.length != num_total) {
+			console.log("Unexpected number of datapoint values. Expected " + num_total + ", data has " + datapoints.length);		
+			check_passed = false;
+
+		} else if (ground_truth_labels.length != num_total) {
+			console.log("Unexpected number of ground truth labels. Expected " + num_total + ", data has " + ground_truth_labels.length);
+			check_passed = false;
+
+		} else if (lf_matrix_noext.length != num_total * num_lf) {
+			console.log("Unexpected number of lf matrix values (noext). Expected " + (num_total * num_lf) + ", data has " + lf_matrix_noext.length);		
+			check_passed = false;
+
+		} else if (lf_matrix_ext.length != num_total * num_lf) {
+			console.log("Unexpected number of lf matrix values (ext). Expected " + (num_total * num_lf) + ", data has " + lf_matrix_ext.length);		
+			check_passed = false;
+		
+		} else if (prob_labels_ext.length != num_total) {
+			console.log("Unexpected number of label model values (ext). Expected " + num_total + ", data has " + label_model_ext.length);		
+			check_passed = false;
+		
+		} else if (prob_labels_noext.length != num_total) {
+			console.log("Unexpected number of label model values (noext). Expected " + num_total + ", data has " + label_model_noext.length);		
+			check_passed = false;
+		}
+
+		return check_passed;
 	}
 
 	function handle_data_load_event() {
@@ -198,6 +286,9 @@
 				temp_datapoints.push(INPUT_BASE_URL + datapoints[i]);
 			}
 			datapoints = temp_datapoints;
+
+			if (!check_data_sanity())
+				alert("Data in dump file did not pass sanity check.");
 
 			console.log("Data load complete: train size=" + num_train + ", val size=" + num_val + ", num LFs=" + num_lf);
 
@@ -220,7 +311,7 @@
 					contents += ", "
 				}
 			contents += "</p>"
-			data_info_el.innerHTML = contents;
+			data_info_el.innerHTML = contents;			
 
 			lfviz.set_data(num_total, num_lf, lf_matrix_noext, prob_labels_noext, datapoint_type, datapoints);
 			reset_row_filter_mask();

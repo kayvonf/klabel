@@ -65,6 +65,8 @@ class WeakDBDump:
 		self.datapoint_type = WeakDBDump.DATAPOINT_TYPE_IMAGE_URL
 		self.datapoints = []				# holds either a text string or an image URL
 
+		self.ground_truth_labels = []
+
 
 	def load_linden(self, dump_dir, dump_name):
 
@@ -79,6 +81,7 @@ class WeakDBDump:
 		# -- The next num_lf columns are extended LF output
 		# -- The next column is LM output on original LF output
 		# -- The next column is LM output on extended LF output
+		# -- The last column is the ground truth label
 
 		# The code below converts Linden's input into a format where there are two tables.
 		# One for the LF matrix prior to extension, and another for the LF matrix after the extension.
@@ -89,7 +92,7 @@ class WeakDBDump:
 
 		self.num_train = len(lf_train_data)
 		self.num_val = len(lf_val_data)
-		self.num_lf = int((len(lf_train_data[0]) - 2) / 2)
+		self.num_lf = int((len(lf_train_data[0]) - 3) / 2)
 
 		print("Loading WeakDB dump from Linden's files... %s" % self.dump_name)
 		print("   Basedir:    %s" % self.base_dir)
@@ -122,6 +125,13 @@ class WeakDBDump:
 			for lf in range(self.num_lf):
 				self.extended_lf_matrix.append(row[self.num_lf + lf])
 			self.extended_prob_labels.append(row[2*self.num_lf+1])
+
+		# process the ground truth labels
+		self.ground_truth_labels = []
+		for row in lf_train_data:
+			self.ground_truth_labels.append(row[2*self.num_lf+2])
+		for row in lf_val_data:
+			self.ground_truth_labels.append(row[2*self.num_lf+2])
 
 		# now process the datapoint descriptors
 		self.datapoints = []
@@ -165,6 +175,9 @@ class WeakDBDump:
 		with open(self.get_prob_labels_json_filename("ext"), "wt") as f:
 			f.write(json.dumps(self.extended_prob_labels))
 
+		with open(self.get_ground_truth_labels_json_filename(), "wt") as f:
+			f.write(json.dumps(self.ground_truth_labels))
+
 		with open(self.get_datapoints_json_filename(), "wt") as f:
 			f.write(json.dumps(self.datapoints))
 
@@ -182,8 +195,12 @@ class WeakDBDump:
 		filename = "%s_prob_labels_%s.json" % (self.dump_name, ext_type)
 		return os.path.join(self.base_dir, filename)
 
+	def get_ground_truth_labels_json_filename(self):
+		filename = "%s_ground_truth_labels.json" % self.dump_name
+		return os.path.join(self.base_dir, filename)
+
 	def get_datapoints_json_filename(self):
-		filename = "%s_datapoints.json" % (self.dump_name)
+		filename = "%s_datapoints.json" % self.dump_name
 		return os.path.join(self.base_dir, filename)
 
 	# input pickle files (from Linden)
