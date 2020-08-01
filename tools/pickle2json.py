@@ -27,8 +27,6 @@ def get_lf_threshold_filename(shot):
 	return os.path.join(DIR_PREFIX, filename)
 
 # TODO:
-#   bring up the old data
-#   add in ground truth (support for dev set and val set)
 #   sort by LM and LM+ext scores
 #   visualize LF matrix before and after extension
 #   visualize extensions due to (data point, LF, data point+LF)
@@ -54,6 +52,8 @@ class WeakDBDump:
 		self.num_train = 0
 		self.num_val = 0
 
+		self.description = "";
+
 		self.lf_names = [];					# human-readable names of labeling functions
 
 		self.lf_matrix = []					# (num_train+num_val) x num_lf matrix (LF results before extension)
@@ -73,7 +73,8 @@ class WeakDBDump:
 		self.base_dir = dump_dir
 		self.dump_name = dump_name
 
-		# HACK(kayvonf): hardcoded this is whoel function is just a stopgap
+		# HACK(kayvonf): hardcoded since this is whole function is just a stopgap for Linden's data dumps
+		self.description = "Backhand slice detectioon (true=slice backhand, false=topspin backhand)"
 		self.lf_names = ["Ball velocity 1", "Ball velocity 2", "Wrist 1", "Wrist 2", "Human"]
 
 		# Linden's pkl format is a table with 2*num_lF + 2 columns
@@ -95,7 +96,7 @@ class WeakDBDump:
 		self.num_lf = int((len(lf_train_data[0]) - 3) / 2)
 
 		print("Loading WeakDB dump from Linden's files... %s" % self.dump_name)
-		print("   Basedir:    %s" % self.base_dir)
+		print("   Base dir:   %s" % self.base_dir)
 		print("   Num LF:     %d" % self.num_lf)
 		print("   Num train:  %d" % self.num_train)
 		print("   Num val:    %d" % self.num_val)
@@ -153,6 +154,7 @@ class WeakDBDump:
 	def save_json(self):
 		
 		dump_info = { "name" : self.dump_name,
+					  "description" : self.description,
 					  "num_lf" : self.num_lf,
 					  "num_train" : self.num_train,
 					  "num_val" : self.num_val,

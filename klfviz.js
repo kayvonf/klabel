@@ -217,14 +217,14 @@ class LFViz {
 						var value_str = "";
 
 						if (this.ground_truth_labels[idx] == 1)
-							value_str = "True";
+							value_str = "true";
 						else if (this.ground_truth_labels[idx] == -1)
-							value_str = "False";
+							value_str = "false";
 						else 
-							value_str = "Unknown";
+							value_str = "unknown";
 
 						var css_class_str = "";
-						if (value_str == "True")
+						if (value_str == "true")
 							css_class_str = " class=\"red_highlight\"";
 
 						str += "<div" + css_class_str + "> Ground truth: " + value_str + "</div>";
