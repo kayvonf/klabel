@@ -36,9 +36,7 @@
 	var LF_OUTPUT_NEGATIVE = -1
 	var LF_OUTPUT_ABSTAIN = 0;
 	var LF_OUTPUT_DISAGREE = -2
-
-	var main_canvas_id = 'main_canvas'   // this is the DOM canvas element 
-	var preview_div_id = 'preview_div'         
+     
 	var lfviz = new LFViz;
 
 	///////////////////////////////////////////////////////////
@@ -92,7 +90,7 @@
 		return 0;
 	}
 
-	// called when the dataset info value has been downloaded
+	// called when the dataset info file has been downloaded
 	function handle_info_file_loaded(info) {
 
 		num_lf = info.num_lf;
@@ -305,8 +303,9 @@
  			});
 	}
 
-	// Checks to see if the size of downloaded files matches what is expected given
-	// the values of the metadata fields in the dataset info file
+	// Check consistency of dataset. Verifies that the size of downloaded
+	// data files matches what is reported in the metadata files of the
+	// dataset info file.
 	function check_data_sanity() {
 
 		var num_total = num_train + num_val;
@@ -467,7 +466,7 @@
 		lfviz.set_row_filter_mask(row_filter_mask);
 	}
 
-	function handle_make_row_filter_mask() {
+	function handle_change_row_filter_mask() {
 
 		var lf_select = 0;
 		var lf_value = 1;
@@ -505,23 +504,30 @@
 		lfviz.set_row_filter_mask(row_filter_mask);
 	}
 
+	
 	function handle_sort_change() {
 
-		var sort_box = document.getElementById("sort_data_selector");
+		var sort_box = document.getElementById('sort_by_selection');
 		var sort_value = sort_box.value;
 		console.log('Sort changed to ' + sort_value);
 
 		var num_total = num_train + num_val;
-
 		var index_list = [];
+
+		// for each datapoint, compute its value that is to be used in the sort
 		for (var i=0; i<num_total; i++) {
 
+			// by default, value is the position in the original list
 			var value = i;
-			if (sort_value == "sort_label_model") {
+
+			if (sort_value == "sort_by_label_model") {
+				// use label model score
 				value = prob_labels_noext[i];
-			} else if (sort_value == "sort_ground_truth_label") {
+			} else if (sort_value == "sort_by_ground_truth_label") {
+				// use ground truth label
 				value = ground_truth_labels[i];
 			} else {
+				// use the count of positives, negatives, or abstains
 				var num_positive = 0;
 				var num_negative = 0;
 				var num_abstain = 0;
@@ -535,11 +541,11 @@
 						num_negative++;
 				}
 
-				if (sort_value == "sort_num_positive")
+				if (sort_value == "sort_by_num_positive")
 					value = num_positive;
-				else if (sort_value == "sort_num_negative")
+				else if (sort_value == "sort_by_num_negative")
 					value = num_negative;
-				else if (sort_value == "sort_num_abstain")
+				else if (sort_value == "sort_by_num_abstain")
 					value = num_abstain;
 			}
 			index_list.push([i, value]);
@@ -557,8 +563,8 @@
 
 	function handle_onload() {
 
-		var main_canvas = document.getElementById(main_canvas_id);
-		var preview_div = document.getElementById(preview_div_id);
+		var main_canvas = document.getElementById('main_canvas');
+		var preview_div = document.getElementById('preview_div');
 
 		lfviz.init(main_canvas, preview_div);
 		load_data();
@@ -576,13 +582,13 @@
 
 <div style="clear: both;">
 Sort rows by
-	<select id="sort_data_selector" onchange="handle_sort_change()">
-       <option value="sort_none">Original data order</option>
-       <option value="sort_label_model">Label model score</option>
-       <option value="sort_ground_truth_label">Ground truth label</option>
-       <option value="sort_num_positive">Num positive votes</option>
-       <option value="sort_num_negative">Num negative votes</option>
-       <option value="sort_num_abstain">Num abstains</option>
+	<select id="sort_by_selection" onchange="handle_sort_change()">
+       <option value="sort_by_none">Original data order</option>
+       <option value="sort_by_label_model">Label model score</option>
+       <option value="sort_by_ground_truth_label">Ground truth label</option>
+       <option value="sort_by_num_positive">Num positive votes</option>
+       <option value="sort_by_num_negative">Num negative votes</option>
+       <option value="sort_by_num_abstain">Num abstains</option>
     </select>
 </div>
 
@@ -602,7 +608,7 @@ Sort rows by
     </select>
     .
 
-    <button id="make_selection" type="button" onclick="handle_make_row_filter_mask()">Go!</button>
+    <button id="make_selection" type="button" onclick="handle_change_row_filter_mask()">Set Filter</button>
     <button id="make_selection" type="button" onclick="handle_clear_row_filter_mask()">Clear Filter</button>
 </div>
 

@@ -2,6 +2,11 @@
 //   -- kmath.js
 
 
+// TODO LIST:
+//   -- Fix filter select options
+//   -- Consider what to do about multiple panes of data (noext/ext). Is toggle fine, or should there be a diff? (diff could just be a filter)
+//   -- Add KNN support
+
 class LFViz {
 
 	static get DATAPOINT_TYPE_NONE() { return 0; }
@@ -61,6 +66,7 @@ class LFViz {
 		this.cur_selection_viz_idx = -1;
 	}
 
+	// sets the datapoint that is currently being hovered over
 	make_selection() {
 		this.cur_selection_viz_idx = this.get_highlighted_viz_cell();
 		this.cur_selection_idx = this.get_highlighted_datapoint();
