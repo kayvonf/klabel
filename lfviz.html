@@ -554,12 +554,12 @@
 
 		var sort_box = document.getElementById('sort_by_selection');
 		var sort_value = sort_box.value;
-		console.log('Sort changed to ' + sort_value);
 
 		var num_total = num_train + num_val;
-		var index_list = [];
-
 		var lf_matrix = (use_noext_data) ? lf_matrix_noext : lf_matrix_ext;
+		var prob_labels = (use_noext_data) ? prob_labels_noext : prob_labels_ext;
+
+		var index_list = [];
 
 		// for each datapoint, compute its value that is to be used in the sort
 		for (var i=0; i<num_total; i++) {
@@ -569,7 +569,7 @@
 
 			if (sort_value == "sort_by_label_model") {
 				// use label model score
-				value = prob_labels_noext[i];
+				value = prob_labels[i];
 			} else if (sort_value == "sort_by_ground_truth_label") {
 				// use ground truth label
 				value = ground_truth_labels[i];
