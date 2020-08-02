@@ -74,7 +74,7 @@ class WeakDBDump:
 		self.dump_name = dump_name
 
 		# HACK(kayvonf): hardcoded since this is whole function is just a stopgap for Linden's data dumps
-		self.description = "Backhand slice detectioon (true=slice backhand, false=topspin backhand)"
+		self.description = "Backhand slice detection (true=slice backhand, false=topspin backhand)"
 		self.lf_names = ["Ball velocity 1", "Ball velocity 2", "Wrist 1", "Wrist 2", "Human"]
 
 		# Linden's pkl format is a table with 2*num_lF + 2 columns
