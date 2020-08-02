@@ -72,6 +72,8 @@
 	// viz application state
 	///////////////////////////////////////////////////////////
 
+	var use_noext_data = true;
+
 	// This mask denoting the rows that should be rendered in the visualizer
 	var row_filter_mask = [];
 
@@ -150,8 +152,13 @@
 		data_info_el.innerHTML = contents;			
 
 		// communicate data to the viz widget
-		lfviz.set_data(num_total, num_lf, lf_matrix_noext, prob_labels_noext, ground_truth_labels, datapoint_type, datapoints);
+
+		var lf_matrix = use_noext_data  ? lf_matrix_noext : lf_matrix_ext;
+		var prob_labels = use_noext_data ? prob_labels_noext : prob_labels_ext;
+
+		lfviz.set_data(num_total, num_lf, lf_matrix, prob_labels, ground_truth_labels, datapoint_type, datapoints);
 		reset_row_filter_mask();
+		handle_sort_change();
 	}
 
 	// Entrypoint that initiates logic for loading data from the server via a sequence of async requests 
@@ -349,6 +356,8 @@
 
 		var num_total = num_train + num_val;
 
+		var lf_matrix = (use_noext_data) ? lf_matrix_noext : lf_matrix_ext;
+
 		//
 		// no filter
 		//
@@ -366,7 +375,7 @@
 				var idx = i*num_lf;
 				row_filter_mask[i] = true;
 				for (var j=0; j<num_lf; j++) {
-					if (lf_matrix_noext[idx + j] != criteria || lf_matrix_noext[idx+j] == LF_OUTPUT_DISAGREE)
+					if (lf_matrix[idx + j] != criteria || lf_matrix[idx+j] == LF_OUTPUT_DISAGREE)
 						row_filter_mask[i] = false;
 				}
 			}
@@ -383,11 +392,11 @@
 				row_filter_mask[i] = true;
 
 				for (var j=0; j<num_lf; j++) {
-					if (lf_matrix_noext[idx + j] == LF_OUTPUT_ABSTAIN)
+					if (lf_matrix[idx + j] == LF_OUTPUT_ABSTAIN)
 						continue;
 					
 					num_votes++;
-					if (lf_matrix_noext[idx + j] != criteria || lf_matrix_noext[idx+j] == LF_OUTPUT_DISAGREE)
+					if (lf_matrix[idx + j] != criteria || lf_matrix[idx+j] == LF_OUTPUT_DISAGREE)
 						row_filter_mask[i] = false;
 				}
 
@@ -409,14 +418,14 @@
 					if (disagree_check) {
 						for (var k=0; k<num_lf; k++) {
 							if (j != k && 
-								lf_matri_noext[idx+j] != LF_OUTPUT_ABSTAIN && lf_matrix_noext[idx+k] != LF_OUTPUT_ABSTAIN &&
-								lf_matrix_noext[idx+j] != lf_matrix_noext[idx+k]) {
+								lf_matri_noext[idx+j] != LF_OUTPUT_ABSTAIN && lf_matrix[idx+k] != LF_OUTPUT_ABSTAIN &&
+								lf_matrix[idx+j] != lf_matrix[idx+k]) {
 								row_filter_mask[i] = true; 
 							}
 						}
 
 					} else {
-						if (lf_matrix_noext[idx + j] == criteria)
+						if (lf_matrix[idx + j] == criteria)
 							row_filter_mask[i] = true;
 					}
 				}
@@ -434,14 +443,14 @@
 				if (disagree_check) {
 					for (var k=0; k<num_lf; k++) {
 						if (lf_function != k &&
-							lf_matrix_noext[idx+lf_function] != LF_OUTPUT_ABSTAIN && lf_matrix_noext[idx+k] != LF_OUTPUT_ABSTAIN &&
-							lf_matrix_noext[idx+lf_function] != lf_matrix_noext[idx+k]) {
+							lf_matrix[idx+lf_function] != LF_OUTPUT_ABSTAIN && lf_matrix[idx+k] != LF_OUTPUT_ABSTAIN &&
+							lf_matrix[idx+lf_function] != lf_matrix[idx+k]) {
 							row_filter_mask[i] = true; 
 						}
 					}
 
 				} else {
-					if (lf_matrix_noext[idx + lf_function] == criteria)
+					if (lf_matrix[idx + lf_function] == criteria)
 						row_filter_mask[i] = true;
 				}
 			}
@@ -496,6 +505,41 @@
 		lfviz.set_row_filter_mask(row_filter_mask);
 	}
 
+	function handle_toggle_show_extended() {
+
+		use_noext_data = !use_noext_data;
+
+		var lf_matrix;
+		var prob_labels;
+
+		var button = document.getElementById("toggle_extended_button");
+		var text = document.getElementById("toggle_extended_text");
+
+		if (use_noext_data) {
+			lf_matrix = lf_matrix_noext;
+			prob_labels = prob_labels_noext;
+			text.innerHTML = 'Showing data BEFORE extension.';
+			button.innerHTML = 'Show Extended Data';
+
+		} else {
+			lf_matrix = lf_matrix_ext;
+			prob_labels = prob_labels_ext;
+			text.innerHTML = 'Showing data AFTER extension.';
+			button.innerHTML = 'Show Original LF Data';
+		}
+
+		// update UI
+
+		// update data in the viz widget
+		var num_total = num_train + num_val;
+		lfviz.set_data(num_total, num_lf, lf_matrix, prob_labels, ground_truth_labels, datapoint_type, datapoints);
+
+		// recompute masks and sorts since the data input to these operations has changed
+		reset_row_filter_mask();
+		handle_sort_change();
+
+	}
+
 	// sorting predicate
 	function sort_ascending_function(el1, el2) {
 
@@ -514,6 +558,8 @@
 
 		var num_total = num_train + num_val;
 		var index_list = [];
+
+		var lf_matrix = (use_noext_data) ? lf_matrix_noext : lf_matrix_ext;
 
 		// for each datapoint, compute its value that is to be used in the sort
 		for (var i=0; i<num_total; i++) {
@@ -534,11 +580,11 @@
 				var num_abstain = 0;
 				for (var j=0; j<num_lf; j++) {
 					var idx = i*num_lf + j;
-					if (lf_matrix_noext[idx] == 0)
+					if (lf_matrix[idx] == 0)
 						num_abstain++;
-					else if (lf_matrix_noext[idx] == 1)
+					else if (lf_matrix[idx] == 1)
 						num_positive++;
-					else if (lf_matrix_noext[idx] == -1)
+					else if (lf_matrix[idx] == -1)
 						num_negative++;
 				}
 
@@ -582,6 +628,11 @@
 </div>
 
 <div style="clear: both;">
+	<span id="toggle_extended_text">Showing data BEFORE extension.</span>
+	<button id="toggle_extended_button" type="button" onclick="handle_toggle_show_extended()">Show Post-Extension Data</button>
+</div>
+
+<div>
 Sort rows by
 	<select id="sort_by_selection" onchange="handle_sort_change()">
        <option value="sort_by_none">Original data order</option>
@@ -616,7 +667,7 @@ Sort rows by
 
 <h3>Dataset Info</h3>
 
-<div id="data_info"></div>
+<div id="data_info">No data loaded.</div>
 
 <h3>Help</h3>
 
