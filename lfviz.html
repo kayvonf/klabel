@@ -152,11 +152,11 @@
 		data_info_el.innerHTML = contents;			
 
 		// communicate data to the viz widget
-
 		var lf_matrix = use_noext_data  ? lf_matrix_noext : lf_matrix_ext;
 		var prob_labels = use_noext_data ? prob_labels_noext : prob_labels_ext;
-
 		lfviz.set_data(num_total, num_lf, lf_matrix, prob_labels, ground_truth_labels, datapoint_type, datapoints);
+
+		// data has changed, so recompute filters and sorts
 		reset_row_filter_mask();
 		handle_sort_change();
 	}
@@ -531,13 +531,11 @@
 		// update UI
 
 		// update data in the viz widget
-		var num_total = num_train + num_val;
-		lfviz.set_data(num_total, num_lf, lf_matrix, prob_labels, ground_truth_labels, datapoint_type, datapoints);
+		lfviz.update_data(lf_matrix, prob_labels);
 
 		// recompute masks and sorts since the data input to these operations has changed
 		reset_row_filter_mask();
 		handle_sort_change();
-
 	}
 
 	// sorting predicate
@@ -573,6 +571,12 @@
 			} else if (sort_value == "sort_by_ground_truth_label") {
 				// use ground truth label
 				value = ground_truth_labels[i];
+			} else if (sort_value == "sort_by_dist_to_selected") {
+				// if there is an item selected, sort datapoints by distance to selected
+				console.log("Not implemented yet...")
+			} else if (sort_value == "sort_by_change_from_extension") {
+				// sort key is the change in label model output between the extended and non-extensed label models					
+				value = prob_labels_ext[i] - prob_labels_noext[i];
 			} else {
 				// use the count of positives, negatives, or abstains
 				var num_positive = 0;
@@ -637,7 +641,9 @@ Sort rows by
 	<select id="sort_by_selection" onchange="handle_sort_change()">
        <option value="sort_by_none">Original data order</option>
        <option value="sort_by_label_model">Label model score</option>
+       <option value="sort_by_change_from_extension">Magnitude of label model change</option>
        <option value="sort_by_ground_truth_label">Ground truth label</option>
+       <option value="sort_by_dist_from_selected" disabled>Distance from selected</option>
        <option value="sort_by_num_positive">Num positive votes</option>
        <option value="sort_by_num_negative">Num negative votes</option>
        <option value="sort_by_num_abstain">Num abstains</option>

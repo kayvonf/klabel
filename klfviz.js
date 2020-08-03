@@ -32,7 +32,7 @@ class LFViz {
 		// visualization
 		this.row_filter_mask = null;
 		this.row_sorting = null;
-		this.last_hover_idx = -1;
+		this.preview_idx = -1;
 
 		// selection
 		this.cur_selection_idx = -1;
@@ -199,65 +199,72 @@ class LFViz {
 	// Updates the contents of the datapoint preview DIV.
 	// Pretty print the LF and label model results and display the
 	// source data (either a text string or an image)
-	update_preview() {
+	//
+	// To avoid flicker as the mouse moves around, we only redraw the preview window if the
+	// datapoint to put into the preview window is different from the datapoint already
+	// visualized there.  force_redraw=true overrides this
 
-		if (this.is_hovering()) {
-			var idx = this.get_highlighted_datapoint();
+	update_preview(force_redraw = false) {
 
-			if (idx >= 0) {
+		var idx;
+		if (this.has_selection())
+			idx = this.cur_selection_idx;
+		else
+			idx = this.get_highlighted_datapoint();
 
-				if (idx != this.last_hover_idx) {
+		if (idx >= 0) {
 
-					var str = "<p>Datapoint: " + idx + " of " + this.num_rows + "<p/>";
+			if (idx != this.preview_idx || force_redraw) {
 
-					var base = this.num_lf*idx;
-					str += "<p>";
-					if (this.ground_truth_labels.length != 0) {
+				var str = "<p>Datapoint: " + idx + " of " + this.num_rows + "<p/>";
 
-						var value_str = "";
+				var base = this.num_lf*idx;
+				str += "<p>";
+				if (this.ground_truth_labels.length != 0) {
 
-						if (this.ground_truth_labels[idx] == 1)
-							value_str = "true";
-						else if (this.ground_truth_labels[idx] == -1)
-							value_str = "false";
-						else 
-							value_str = "unknown";
+					var value_str = "";
 
-						var css_class_str = "";
-						if (value_str == "true")
-							css_class_str = " class=\"red_highlight\"";
+					if (this.ground_truth_labels[idx] == 1)
+						value_str = "true";
+					else if (this.ground_truth_labels[idx] == -1)
+						value_str = "false";
+					else 
+						value_str = "unknown";
 
-						str += "<div" + css_class_str + "> Ground truth: " + value_str + "</div>";
-					}
-					str += "<div>LM score: "+ this.model_scores[idx].toPrecision(4) + "</div>"
-					str += "<div>LF votes: ";
-					for (var i=0;i<this.num_lf; i++) {
-						str += this.data_matrix[base + i];
-						if (i < this.num_lf-1)
-							str += ", "; 
-					}
-					str += "</div>";
-					str += "</p>";
+					var css_class_str = "";
+					if (value_str == "true")
+						css_class_str = " class=\"red_highlight\"";
 
-					if (this.datapoint_type == LFViz.DATAPOINT_TYPE_TEXT)
-						str += "<p>" + this.datapoints[idx] + "</p>";
-					else if (this.datapoint_type == LFViz.DATAPOINT_TYPE_IMAGE_URL)
-						str += "<p><img src=\"" + this.datapoints[idx] + "\" width=\"" +
-	                           this.preview_div_el.clientWidth + "\" /></p>";
+					str += "<div" + css_class_str + "> Ground truth: " + value_str + "</div>";
+				}
+				str += "<div>LM score: "+ this.model_scores[idx].toPrecision(4) + "</div>"
+				str += "<div>LF votes: ";
+				for (var i=0;i<this.num_lf; i++) {
+					str += this.data_matrix[base + i];
+					if (i < this.num_lf-1)
+						str += ", "; 
+				}
+				str += "</div>";
+				str += "</p>";
 
-	                this.last_hover_idx = idx;
-                	this.preview_div_el.innerHTML = str;
-            	}
+				if (this.datapoint_type == LFViz.DATAPOINT_TYPE_TEXT)
+					str += "<p>" + this.datapoints[idx] + "</p>";
+				else if (this.datapoint_type == LFViz.DATAPOINT_TYPE_IMAGE_URL)
+					str += "<p><img src=\"" + this.datapoints[idx] + "\" width=\"" +
+                           this.preview_div_el.clientWidth + "\" /></p>";
+
+                this.preview_idx = idx;
+            	this.preview_div_el.innerHTML = str;
 			}
-			
-			else {
-				this.preview_div_el.innerHTML = "";
-			}
+    	} else {
+			this.preview_div_el.innerHTML = "";
 		}
 	}
 
-	// Update the input data for the visualizer.
-	// Currently, updating the input data resets both the row filter mask and the row sorting
+	// Change the input data for the visualizer.
+	// Currently, this is treated a hard reset of the state of the visualizer.
+	// Updating the input data resets both the row filter mask and the row sorting
+	// See 'update_data()' instead for retaining all viz state and just swapping out data values
 	set_data(num_rows, num_lf, lf_matrix, model_scores, gt_labels=[], datapoint_type=LFViz.DATAPOINT_TYPE_NONE, datapoints=[]) {
 		this.num_rows = num_rows;
 		this.num_lf = num_lf;
@@ -287,6 +294,17 @@ class LFViz {
 
 		this.render_cached_viz();
 		this.render();
+		this.update_preview(true);
+	}
+
+	// update the LF matrix and probablistic label values with new values
+	// maintain all other data of the visualizer
+	update_data(lf_matrix, model_scores) {
+		this.data_matrix = lf_matrix;
+		this.model_scores = model_scores;
+		this.render_cached_viz();
+		this.render();
+		this.update_preview(true);
 	}
 
 	// The visualization will permute the datapoint according to the indices in row_sorting
@@ -302,7 +320,8 @@ class LFViz {
 		}
 
 		this.render_cached_viz();
-		this.render();	
+		this.render();
+		this.update_preview();
 	}
 
 	// The row filter mask determines which datapoints get shown in the visualization.
@@ -316,7 +335,8 @@ class LFViz {
 			this.clear_selection();
 
 		this.render_cached_viz();
-		this.render();	
+		this.render();
+		this.update_preview();
 	}
 
 	handle_canvas_mousemove = event => {
