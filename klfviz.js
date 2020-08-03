@@ -47,7 +47,7 @@ class LFViz {
 		// layout parameters
 		this.display_el_width = 7;
 		this.display_el_height = 7;
-		this.display_col_sep = 7;
+		this.display_col_sep = this.display_el_width;
 
 	}
 
@@ -127,6 +127,11 @@ class LFViz {
 		var rows_per_col = Math.floor(this.main_canvas_el.height / this.display_el_height);
 		var num_cols = Math.floor((this.num_rows + rows_per_col - 1) / rows_per_col); 
 
+		var spaced_col_width = this.display_el_width * this.num_lf + this.display_col_sep;
+
+		if (num_cols * spaced_col_width > this.main_canvas_el.width)
+			console.log("KLFViz: WARNING: amount of data too large for canvas, not showing all data!");
+
 		for (var col=0; col<num_cols; col++) {
 
 			var start_row = col * rows_per_col;
@@ -150,7 +155,7 @@ class LFViz {
 						else if (this.data_matrix[idx] == -1)
 							el_color = this.color_lf_negative;
 
-						var start_x = col * (this.display_el_width * this.num_lf + this.display_col_sep) + j*this.display_el_width;
+						var start_x = col * spaced_col_width + j*this.display_el_width;
 						ctx.fillStyle = el_color;
 						ctx.fillRect(start_x, start_y, this.display_el_width, this.display_el_height);
 					}
