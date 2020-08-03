@@ -7,34 +7,8 @@ import numpy
 
 DIR_PREFIX = "lfviz_assets"
 
-SHOTS = ["forehand", "backhand"]
-SPLITS = ["train", "val"]
-
-
-# HACK(kayvonf): convert from fp32 to fp64 in order to serialize to JSON
-# JSON library doesn't serialize float32 values.
-def float32_to_float64(x):			
-	return [ numpy.float64(item) for item in x]
-
-def get_lf_matrix_filename(shot, split):
-	filename = "%s_%s.pkl" % (shot, split)
-	return os.path.join(DIR_PREFIX, filename)
-
-def get_dist_matrix_filename(shot, split):
-	filename = "%s_%s_dists.pkl" % (shot, split)
-	return os.path.join(DIR_PREFIX, filename)
-
-def get_image_paths_filename(shot, split):
-	filename = "%s_%s_dists.pkl" % (shot, split)
-	return os.path.join(DIR_PREFIX, filename)	
-
-def get_lf_threshold_filename(shot):
-	filename = "lf_thresholds.pkl"
-	return os.path.join(DIR_PREFIX, filename)
 
 # TODO:
-#   sort by LM and LM+ext scores
-#   visualize LF matrix before and after extension
 #   visualize extensions due to (data point, LF, data point+LF)
 #   sort by data points that added the largest number of extensions (to train or to val????) 
 #   ask dan about other parameters. e.g., expected class balance?
@@ -43,6 +17,12 @@ def get_lf_threshold_filename(shot):
 #   visualize clusters of data points / highlight a slice of data?
 # =====================
 #   functionality for creating a slice manually?  (location of inaccuracies? location of disagreements?)
+
+
+# HACK(kayvonf): convert from fp32 to fp64 in order to serialize to JSON
+# JSON library doesn't serialize float32 values.
+def float32_to_float64(x):			
+	return [ numpy.float64(item) for item in x]
 
 class WeakDBDump:
 
@@ -56,6 +36,7 @@ class WeakDBDump:
 	SAMPLE_LIST_SIZE =  50
 
 	def __init__(self):
+
 		self.dump_name = ""
 		self.num_lf = 0
 		self.num_train = 0
@@ -71,25 +52,75 @@ class WeakDBDump:
 		self.extended_lf_matrix = []		# (num_train+num_val) x num_lf matrix (LF results after extension)
 		self.extended_prob_labels = []	    # label model output (after extension)
 
-		# description of the data itself
+		# description of the datapoints
 		self.datapoint_type = WeakDBDump.DATAPOINT_TYPE_IMAGE_URL
 		self.datapoints = []				# holds either a text string or an image URL (for preview in viz)
 
 		self.ground_truth_labels = []		# ground truth labels
 
-		self.sorted_dists = []
+		self.sorted_dists = []				# list of lists of k-nn indices (in closest to farthest order) 
 
-	# helper
+
+	# output json files (these are the files lfviz expects to load)
+
+	def get_dump_info_json_filename(self):
+		filename = "%s.json" % (self.dump_name)
+		return os.path.join(self.base_dir, filename)
+
+	def get_lf_matrix_json_filename(self, ext_type):
+		filename = "%s_lfmatrix_%s.json" % (self.dump_name, ext_type)
+		return os.path.join(self.base_dir, filename)
+
+	def get_prob_labels_json_filename(self, ext_type):
+		filename = "%s_prob_labels_%s.json" % (self.dump_name, ext_type)
+		return os.path.join(self.base_dir, filename)
+
+	def get_ground_truth_labels_json_filename(self):
+		filename = "%s_ground_truth_labels.json" % self.dump_name
+		return os.path.join(self.base_dir, filename)
+
+	def get_datapoints_json_filename(self):
+		filename = "%s_datapoints.json" % self.dump_name
+		return os.path.join(self.base_dir, filename)
+
+	def get_distances_json_filename(self):
+		filename = "%s_sorted_dists.json" % self.dump_name
+		return os.path.join(self.base_dir, filename)
+
+	# FIXME(kayvonf): remove these once we sync with Linden
+	# input pickle files (from Linden)
+
+	def get_linden_lf_matrix_pkl_filename(self, split):
+		filename = "%s_%s.pkl" % (self.dump_name, split)
+		return os.path.join(self.base_dir, filename)
+
+	def get_linden_lf_threshold_pkl_filename(self):
+		filename = "%s_lf_thresholds.pkl" % self.dump_name
+		return os.path.join(self.base_dir, filename)
+     
+	def get_linden_dist_matrix_pkl_filename(self, split):
+		filename = "%s_%s_dists.pkl" % (self.dump_name, split)
+		return os.path.join(self.base_dir, filename)
+
+	def get_linden_image_paths_pkl_filename(self, split):
+		filename = "%s_%s_paths.pkl" % (self.dump_name, split)
+		return os.path.join(self.base_dir, filename)
+
+
+	# helper: does the heavy lifting of turning a row in the distance matrix into
+	# a row of sorted (by distance) indices
 	def process_dists_row(self, dists_row, query_idx=-1):
 
 		pairs = [(x, dists_row[x]) for x in range(len(dists_row))]
 		pairs.sort(reverse=True, key=(lambda x : x[1]))
 		
 		if query_idx >= 0 and query_idx != pairs[0][0]:
-			print("WARNING: closest datapoint to datapoint %d is datapoint %d (not itself). Could be a sign of duplicate data." % (query_idx, pairs[0][0]));
+			print("WARNING: closest datapoint to datapoint %d is datapoint %d (expected %d). Often a sign of duplicate data." % (query_idx, pairs[0][0], query_idx));
 
-		# build two lists: one is a list of the top N closest items to the query.
+		# Build three lists:
+		# The first is a list of the top N closest items to the query.
 		# The second is a sampling of SAMPLE_LIST_SIZE elements 
+		# The third is a rank ordering of the datapoints (closest to farthest)
 
 		closest_n = []
 		sampled_n = []
@@ -116,9 +147,15 @@ class WeakDBDump:
 
 			num_processed = num_processed + 1
 
+		# FIXME(kayvonf): right now just returing the rank ordering until I figure out what
+		# I'd do with the additional information in the visualizer
+
 		#return {"ranking" : ranking, "closest" : closest_n, "sampling" : sampled_n}
 		return ranking;
 
+	# FIXME(kayvonf): This is a function that I expect to go away soon
+	# It loads Linden's pkl files for the tennis task.  It should be replaced by Linden just
+	# directly calling WeakDBDump to create this structure
 	def load_linden(self, dump_dir, dump_name):
 
 		self.base_dir = dump_dir
@@ -139,8 +176,8 @@ class WeakDBDump:
 		# One for the LF matrix prior to extension, and another for the LF matrix after the extension.
 		# These tables contain *both* training and val set data.  
 
-		lf_train_data = pickle.load( open(self.get_lf_matrix_pkl_filename(WeakDBDump.TRAINING_SET), "rb") )
-		lf_val_data = pickle.load( open(self.get_lf_matrix_pkl_filename(WeakDBDump.VAL_SET), "rb") )
+		lf_train_data = pickle.load( open(self.get_linden_lf_matrix_pkl_filename(WeakDBDump.TRAINING_SET), "rb") )
+		lf_val_data = pickle.load( open(self.get_linden_lf_matrix_pkl_filename(WeakDBDump.VAL_SET), "rb") )
 
 		self.num_train = len(lf_train_data)
 		self.num_val = len(lf_val_data)
@@ -187,8 +224,8 @@ class WeakDBDump:
 
 		# now process the datapoint descriptors
 		self.datapoints = []
-		datapoints_train = pickle.load(open(self.get_image_paths_pkl_filename(WeakDBDump.TRAINING_SET), "rb"))
-		datapoints_val = pickle.load(open(self.get_image_paths_pkl_filename(WeakDBDump.VAL_SET), "rb"))
+		datapoints_train = pickle.load(open(self.get_linden_image_paths_pkl_filename(WeakDBDump.TRAINING_SET), "rb"))
+		datapoints_val = pickle.load(open(self.get_linden_image_paths_pkl_filename(WeakDBDump.VAL_SET), "rb"))
 		for row in datapoints_train:
 			self.datapoints.append(row)
 		for row in datapoints_val:
@@ -196,8 +233,8 @@ class WeakDBDump:
 
 		# process the distance matrices
 		self.sorted_dists = []
-		train_dist_matrix = pickle.load(open(self.get_dist_matrix_pkl_filename(WeakDBDump.TRAINING_SET), "rb"))
-		val_dist_matrix = pickle.load(open(self.get_dist_matrix_pkl_filename(WeakDBDump.VAL_SET), "rb"))
+		train_dist_matrix = pickle.load(open(self.get_linden_dist_matrix_pkl_filename(WeakDBDump.TRAINING_SET), "rb"))
+		val_dist_matrix = pickle.load(open(self.get_linden_dist_matrix_pkl_filename(WeakDBDump.VAL_SET), "rb"))
 		cur_row_idx = 0
 		for row in train_dist_matrix:
 			self.sorted_dists.append(self.process_dists_row(float32_to_float64(row), query_idx=cur_row_idx))
@@ -208,6 +245,8 @@ class WeakDBDump:
 		#print("Train dist matrix is: %d x %d" % (len(train_dist_matrix), len(train_dist_matrix[0])))
 		#print("Val dist matrix is: %d x %d" % (len(val_dist_matrix), len(val_dist_matrix[0])))
 
+
+	# writes the dataset to a collection of json files that can be read by lfviz
 	def save_json(self):
 		
 		dump_info = { "name" : self.dump_name,
@@ -241,51 +280,7 @@ class WeakDBDump:
 			f.write(json.dumps(self.datapoints))
 
 		with open(self.get_distances_json_filename(), "wt") as f:
-			f.write(json.dumps(self.sorted_dists))
-
-	# output json files (for lfviz)
-
-	def get_dump_info_json_filename(self):
-		filename = "%s.json" % (self.dump_name)
-		return os.path.join(self.base_dir, filename)
-
-	def get_lf_matrix_json_filename(self, ext_type):
-		filename = "%s_lfmatrix_%s.json" % (self.dump_name, ext_type)
-		return os.path.join(self.base_dir, filename)
-
-	def get_prob_labels_json_filename(self, ext_type):
-		filename = "%s_prob_labels_%s.json" % (self.dump_name, ext_type)
-		return os.path.join(self.base_dir, filename)
-
-	def get_ground_truth_labels_json_filename(self):
-		filename = "%s_ground_truth_labels.json" % self.dump_name
-		return os.path.join(self.base_dir, filename)
-
-	def get_datapoints_json_filename(self):
-		filename = "%s_datapoints.json" % self.dump_name
-		return os.path.join(self.base_dir, filename)
-
-	def get_distances_json_filename(self):
-		filename = "%s_sorted_dists.json" % self.dump_name
-		return os.path.join(self.base_dir, filename)
-
-	# input pickle files (from Linden)
-
-	def get_lf_matrix_pkl_filename(self, split):
-		filename = "%s_%s.pkl" % (self.dump_name, split)
-		return os.path.join(self.base_dir, filename)
-
-	def get_lf_threshold_pkl_filename(self):
-		filename = "%s_lf_thresholds.pkl" % self.dump_name
-		return os.path.join(self.base_dir, filename)
-     
-	def get_dist_matrix_pkl_filename(self, split):
-		filename = "%s_%s_dists.pkl" % (self.dump_name, split)
-		return os.path.join(self.base_dir, filename)
-
-	def get_image_paths_pkl_filename(self, split):
-		filename = "%s_%s_paths.pkl" % (self.dump_name, split)
-		return os.path.join(self.base_dir, filename)	
+			f.write(json.dumps(self.sorted_dists))	
 
 
 db = WeakDBDump()
