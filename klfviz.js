@@ -47,7 +47,7 @@ class LFViz {
 		// layout parameters
 		this.display_el_width = 7;
 		this.display_el_height = 7;
-		this.display_col_sep = 7;
+		this.display_col_sep = this.display_el_width;
 
 	}
 
@@ -127,6 +127,11 @@ class LFViz {
 		var rows_per_col = Math.floor(this.main_canvas_el.height / this.display_el_height);
 		var num_cols = Math.floor((this.num_rows + rows_per_col - 1) / rows_per_col); 
 
+		var spaced_col_width = this.display_el_width * this.num_lf + this.display_col_sep;
+
+		if (num_cols * spaced_col_width > this.main_canvas_el.width)
+			console.log("KLFViz: WARNING: amount of data too large for canvas, not showing all data!");
+
 		for (var col=0; col<num_cols; col++) {
 
 			var start_row = col * rows_per_col;
@@ -150,7 +155,7 @@ class LFViz {
 						else if (this.data_matrix[idx] == -1)
 							el_color = this.color_lf_negative;
 
-						var start_x = col * (this.display_el_width * this.num_lf + this.display_col_sep) + j*this.display_el_width;
+						var start_x = col * spaced_col_width + j*this.display_el_width;
 						ctx.fillStyle = el_color;
 						ctx.fillRect(start_x, start_y, this.display_el_width, this.display_el_height);
 					}
@@ -225,31 +230,6 @@ class LFViz {
 
 				var str = "<p>Datapoint: " + idx + " of " + this.num_rows + "<p/>";
 
-				var base = this.num_lf*idx;
-				str += "<p>";
-				if (this.ground_truth_labels.length != 0) {
-
-					var value_str = "";
-
-					if (this.ground_truth_labels[idx] == 1)
-						value_str = "true";
-					else if (this.ground_truth_labels[idx] == -1)
-						value_str = "false";
-					else 
-						value_str = "unknown";
-
-					str += "<div>Ground truth: " + value_str + "</div>";
-				}
-				str += "<div>LM score: "+ this.model_scores[idx].toPrecision(4) + "</div>"
-				str += "<div>LF votes: ";
-				for (var i=0;i<this.num_lf; i++) {
-					str += this.data_matrix[base + i];
-					if (i < this.num_lf-1)
-						str += ", "; 
-				}
-				str += "</div>";
-				str += "</p>";
-
 				if (this.datapoint_type == LFViz.DATAPOINT_TYPE_TEXT)
 					str += "<p>" + this.datapoints[idx] + "</p>";
 
@@ -266,6 +246,31 @@ class LFViz {
 					str += "<p><img class=\"similarity_thumb " + style_override + "\" src=\"" + this.datapoints[idx] + "\" width=\"" +
                            this.preview_div_el.clientWidth + "\" height=\"" + this.preview_div_el.clientWidth + "\" /></p>";
 				}
+
+				str += "<p>";
+				if (this.ground_truth_labels.length != 0) {
+
+					var value_str = "";
+
+					if (this.ground_truth_labels[idx] == 1)
+						value_str = "true";
+					else if (this.ground_truth_labels[idx] == -1)
+						value_str = "false";
+					else 
+						value_str = "unknown";
+
+					str += "<div>Ground truth: " + value_str + "</div>";
+				}
+				str += "<div>LM score: "+ this.model_scores[idx].toPrecision(4) + "</div>"
+				str += "<div>LF votes: ";
+				var base = this.num_lf*idx;
+				for (var i=0;i<this.num_lf; i++) {
+					str += this.data_matrix[base + i];
+					if (i < this.num_lf-1)
+						str += ", "; 
+				}
+				str += "</div>";
+				str += "</p>";
 
                 // FIXME(kayvonf): terrible hack. Hardcoding this event handler for now
                 str += "<p><a href=\"#\" onclick=\"handle_view_similar(" + idx + ")\">View Similar Datapoints</p>"
