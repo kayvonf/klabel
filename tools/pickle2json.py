@@ -2,6 +2,7 @@ import json
 import pickle
 import os
 import sys
+import numpy
 
 
 DIR_PREFIX = "lfviz_assets"
@@ -9,6 +10,11 @@ DIR_PREFIX = "lfviz_assets"
 SHOTS = ["forehand", "backhand"]
 SPLITS = ["train", "val"]
 
+
+# HACK(kayvonf): convert from fp32 to fp64 in order to serialize to JSON
+# JSON library doesn't serialize float32 values.
+def float32_to_float64(x):			
+	return [ numpy.float64(item) for item in x]
 
 def get_lf_matrix_filename(shot, split):
 	filename = "%s_%s.pkl" % (shot, split)
@@ -46,6 +52,9 @@ class WeakDBDump:
 	DATAPOINT_TYPE_IMAGE_URL = "image_url"
 	DATAPOINT_TYPE_TEXT = "string"
 
+	CLOSEST_LIST_SIZE = 20
+	SAMPLE_LIST_SIZE =  50
+
 	def __init__(self):
 		self.dump_name = ""
 		self.num_lf = 0
@@ -60,13 +69,55 @@ class WeakDBDump:
 		self.prob_labels = []				# label model output (before extension)
 
 		self.extended_lf_matrix = []		# (num_train+num_val) x num_lf matrix (LF results after extension)
-		self.extended_prob_labels = []	    # label model output (before extension)
+		self.extended_prob_labels = []	    # label model output (after extension)
 
+		# description of the data itself
 		self.datapoint_type = WeakDBDump.DATAPOINT_TYPE_IMAGE_URL
-		self.datapoints = []				# holds either a text string or an image URL
+		self.datapoints = []				# holds either a text string or an image URL (for preview in viz)
 
-		self.ground_truth_labels = []
+		self.ground_truth_labels = []		# ground truth labels
 
+		self.sorted_dists = []
+
+	# helper
+	def process_dists_row(self, dists_row, query_idx=-1):
+
+		pairs = [(x, dists_row[x]) for x in range(len(dists_row))]
+		pairs.sort(reverse=True, key=(lambda x : x[1]))
+		
+		if query_idx >= 0 and query_idx != pairs[0][0]:
+			print("WARNING: closest datapoint to datapoint %d is datapoint %d (not itself). Could be a sign of duplicate data." % (query_idx, pairs[0][0]));
+
+		# build two lists: one is a list of the top N closest items to the query.
+		# The second is a sampling of SAMPLE_LIST_SIZE elements 
+
+		closest_n = []
+		sampled_n = []
+		ranking = []
+
+		sample_skip = int(len(dists_row) / WeakDBDump.SAMPLE_LIST_SIZE);
+		num_processed = 0
+
+		for (idx,dist) in pairs:
+
+			# throw out the nearest neighbor datapoint if its the same as the current datapoint
+			if query_idx >= 0 and query_idx == idx:
+				continue
+
+			ranking.append(idx)
+
+			# store in closest-N list
+			if len(closest_n) < WeakDBDump.CLOSEST_LIST_SIZE:
+				closest_n.append((idx, dist))
+
+			# store in sorted samples list
+			if len(sampled_n) < WeakDBDump.SAMPLE_LIST_SIZE and num_processed % sample_skip == 0:
+				sampled_n.append((idx, dist))
+
+			num_processed = num_processed + 1
+
+		#return {"ranking" : ranking, "closest" : closest_n, "sampling" : sampled_n}
+		return ranking;
 
 	def load_linden(self, dump_dir, dump_name):
 
@@ -143,13 +194,19 @@ class WeakDBDump:
 		for row in datapoints_val:
 			self.datapoints.append(row)
 
-		# now look at the distance matrices
-		# train_dist_matrix = pickle.load(open(self.get_dist_matrix_pkl_filename(WeakDBDump.TRAINING_SET), "rb"))
-		# print("Train dist matrix is: %d x %d" % (len(train_dist_matrix), len(train_dist_matrix[0])))
+		# process the distance matrices
+		self.sorted_dists = []
+		train_dist_matrix = pickle.load(open(self.get_dist_matrix_pkl_filename(WeakDBDump.TRAINING_SET), "rb"))
+		val_dist_matrix = pickle.load(open(self.get_dist_matrix_pkl_filename(WeakDBDump.VAL_SET), "rb"))
+		cur_row_idx = 0
+		for row in train_dist_matrix:
+			self.sorted_dists.append(self.process_dists_row(float32_to_float64(row), query_idx=cur_row_idx))
+			cur_row_idx=cur_row_idx+1
+		for row in val_dist_matrix:
+			self.sorted_dists.append(self.process_dists_row(float32_to_float64(row)))
 
-		# val_dist_matrix = pickle.load(open(self.get_dist_matrix_pkl_filename(WeakDBDump.VAL_SET), "rb"))
-		# print("Val dist matrix is: %d x %d" % (len(val_dist_matrix), len(val_dist_matrix[0])))
-
+		#print("Train dist matrix is: %d x %d" % (len(train_dist_matrix), len(train_dist_matrix[0])))
+		#print("Val dist matrix is: %d x %d" % (len(val_dist_matrix), len(val_dist_matrix[0])))
 
 	def save_json(self):
 		
@@ -183,6 +240,9 @@ class WeakDBDump:
 		with open(self.get_datapoints_json_filename(), "wt") as f:
 			f.write(json.dumps(self.datapoints))
 
+		with open(self.get_distances_json_filename(), "wt") as f:
+			f.write(json.dumps(self.sorted_dists))
+
 	# output json files (for lfviz)
 
 	def get_dump_info_json_filename(self):
@@ -203,6 +263,10 @@ class WeakDBDump:
 
 	def get_datapoints_json_filename(self):
 		filename = "%s_datapoints.json" % self.dump_name
+		return os.path.join(self.base_dir, filename)
+
+	def get_distances_json_filename(self):
+		filename = "%s_sorted_dists.json" % self.dump_name
 		return os.path.join(self.base_dir, filename)
 
 	# input pickle files (from Linden)

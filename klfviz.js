@@ -4,8 +4,8 @@
 
 // TODO LIST:
 //   -- Fix filter select options
-//   -- Consider what to do about multiple panes of data (noext/ext). Is toggle fine, or should there be a diff? (diff could just be a filter)
 //   -- Add KNN support
+//   -- a bunch of data in the dump is of type float and could be integer
 
 class LFViz {
 
@@ -61,15 +61,15 @@ class LFViz {
 		return (this.cur_selection_idx != -1);
 	}
 
-	clear_selection() {
-		this.cur_selection_idx = -1;
-		this.cur_selection_viz_idx = -1;
-	}
-
 	// sets the datapoint that is currently being hovered over
 	make_selection() {
 		this.cur_selection_viz_idx = this.get_highlighted_viz_cell();
 		this.cur_selection_idx = this.get_highlighted_datapoint();
+	}
+
+	clear_selection() {
+		this.cur_selection_idx = -1;
+		this.cur_selection_viz_idx = -1;
 	}
 
 	// Clamp the cursor to the image dimensions
@@ -231,11 +231,7 @@ class LFViz {
 					else 
 						value_str = "unknown";
 
-					var css_class_str = "";
-					if (value_str == "true")
-						css_class_str = " class=\"red_highlight\"";
-
-					str += "<div" + css_class_str + "> Ground truth: " + value_str + "</div>";
+					str += "<div>Ground truth: " + value_str + "</div>";
 				}
 				str += "<div>LM score: "+ this.model_scores[idx].toPrecision(4) + "</div>"
 				str += "<div>LF votes: ";
@@ -249,9 +245,23 @@ class LFViz {
 
 				if (this.datapoint_type == LFViz.DATAPOINT_TYPE_TEXT)
 					str += "<p>" + this.datapoints[idx] + "</p>";
-				else if (this.datapoint_type == LFViz.DATAPOINT_TYPE_IMAGE_URL)
-					str += "<p><img src=\"" + this.datapoints[idx] + "\" width=\"" +
-                           this.preview_div_el.clientWidth + "\" /></p>";
+
+				else if (this.datapoint_type == LFViz.DATAPOINT_TYPE_IMAGE_URL) {
+
+					var style_override = "";
+					if (this.ground_truth_labels.length	!= 0) {
+						if (this.ground_truth_labels[idx] == 1)
+							style_override = "similarity_thumb_positive";
+						else if (ground_truth_labels[idx] == -1)
+							style_override = "similarity_thumb_negative";
+					}	
+
+					str += "<p><img class=\"similarity_thumb " + style_override + "\" src=\"" + this.datapoints[idx] + "\" width=\"" +
+                           this.preview_div_el.clientWidth + "\" height=\"" + this.preview_div_el.clientWidth + "\" /></p>";
+				}
+
+                // FIXME(kayvonf): terrible hack. Hardcoding this event handler for now
+                str += "<p><a href=\"#\" onclick=\"handle_view_similar(" + idx + ")\">View Similar Datapoints</p>"
 
                 this.preview_idx = idx;
             	this.preview_div_el.innerHTML = str;
@@ -305,6 +315,31 @@ class LFViz {
 		this.render_cached_viz();
 		this.render();
 		this.update_preview(true);
+	}
+
+	get_selection() {
+		return this.cur_selection_idx;
+	}
+
+	set_selection(idx) {
+		console.log("Setting selection to " + idx);
+		this.cur_selection_idx = idx; 
+
+		if (this.has_selection()) {
+			for (var i=0; i<this.num_rows; i++)
+				if (this.row_sorting[i] == this.cur_selection_idx)
+					this.cur_selection_viz_idx = i;
+		}
+
+		if (this.has_selection() && this.row_filter_mask[this.cur_selection_idx] == false) {
+			this.clear_selection();
+			console.log("Not selecting datapoint " + idx + " since it's currently filtered.")
+		}
+
+		console.log("viz index = " + this.cur_selection_viz_idx);
+
+		this.render();
+		this.update_preview();
 	}
 
 	// The visualization will permute the datapoint according to the indices in row_sorting
@@ -371,16 +406,17 @@ class LFViz {
 		this.update_preview();
 	}
 
-	init(main_canvas_el, preview_div_el) {
+
+	init(main_canvas_el, preview_div_el, similarity_callback) {
 
 		this.main_canvas_el = main_canvas_el;
+		this.preview_div_el = preview_div_el;
+		this.similarity_callback = similarity_callback;
 
 		this.main_canvas_el.addEventListener("mousemove", this.handle_canvas_mousemove, false);
 		this.main_canvas_el.addEventListener("mouseover", this.handle_canvas_mouseover, false);
 		this.main_canvas_el.addEventListener("mouseout",  this.handle_canvas_mouseout,  false);
 		this.main_canvas_el.addEventListener("click", this.handle_canvas_click, false);
-
-		this.preview_div_el = preview_div_el;
 
 		this.render_cached_viz();
 		this.render();

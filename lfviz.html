@@ -13,7 +13,11 @@
 	}
 
 	body a {
-		color: #d0d0d0;
+		color: #808080;
+	}
+
+	body a:hover {
+		text-decoration: underline;
 	}
 
 	.bold_text {
@@ -23,6 +27,20 @@
 	.red_highlight {
 		color: #ff0000;
 	}
+
+	.similarity_thumb {
+		border: 1px solid #808080;
+		margin: 1px;
+	}
+
+	.similarity_thumb_positive {
+		border-bottom: 5px solid #67bf5c;
+	}
+
+	.similarity_thumb_negative {
+		border-bottom: 5px solid #ed665d;
+	}
+
 
 </style>
 
@@ -67,6 +85,10 @@
 
 	// ground truth labels
 	var ground_truth_labels = []
+
+	// for each datapoint, ranking of all other datapoints in terms of closeness in feature space
+	// (in other words, the sorted distance matrix)
+	var dist_rankings = []
 
 	///////////////////////////////////////////////////////////
 	// viz application state
@@ -183,7 +205,7 @@
   		ground_truth_labels = []
  		datapoints = [];
 
- 		pending_data_load_events = 6;
+ 		pending_data_load_events = 7;
 
 		var dump_info_url = INPUT_BASE_URL + DUMP_NAME + '.json';
 
@@ -206,6 +228,7 @@
 				var prob_labels_ext_url = prefix + '_prob_labels_ext.json';
 				var datapoints_url = prefix + '_datapoints.json';
 				var ground_truth_labels_url = prefix + '_ground_truth_labels.json';
+				var dist_ranking_url = prefix + '_sorted_dists.json';
 
 		 		fetch(datapoints_url)
 		 			.then(function(response) {
@@ -297,6 +320,21 @@
 		 				console.log('Error fetching ground truth data: ', err);
 		 			});
 
+		 		fetch(dist_ranking_url)
+		 			.then(function(response) {
+		 				if (response.status !== 200) {
+		 					console.log("problem: " + response.status);
+		 				}
+		 				return response.json();
+					})
+					.then(function(data) {
+						dist_rankings = data;
+						handle_data_load_event();
+					})
+		 			.catch(function(err) {
+		 				console.log('Error fetching ground truth data: ', err);
+		 			});
+
 			})
  			.catch(function(err) {
  				console.log('Error fetching dataset info file: ', err);
@@ -338,9 +376,44 @@
 		} else if (prob_labels_noext.length != num_total) {
 			console.log("Unexpected number of label model values (noext). Expected " + num_total + ", data has " + label_model_noext.length);		
 			check_passed = false;
+		
+		} else if (dist_rankings.length != num_total) {
+			console.log("Unexpected number of ranking lists. Expected " + num_total + ", data has " + dist_rankings.length);		
+			check_passed = false;	
 		}
 
 		return check_passed;
+	}
+
+	function handle_select_datapoint(datapoint_idx) {
+		lfviz.set_selection(datapoint_idx);
+	}
+
+	function handle_view_similar(image_idx) {
+
+		var similarity_el = document.getElementById("similarity");
+
+
+		var num_thumbs = Math.min(250, dist_rankings[image_idx].length);
+
+		var str = "<h3>Top " + num_thumbs + " most similar images to datapoint: " + image_idx + "</h3>"
+
+		str += "<div>";
+		for (var i=0; i<num_thumbs; i++) {
+
+			var neighbor_idx = dist_rankings[image_idx][i];
+			
+			if (ground_truth_labels[neighbor_idx] == 1)
+				style_override = "similarity_thumb_positive";
+			else if (ground_truth_labels[neighbor_idx] == -1)
+				style_override = "similarity_thumb_negative";			
+
+			str += "<a href=\"#\" onclick=\"handle_select_datapoint(" + neighbor_idx + ")\"><img class=\"similarity_thumb " + style_override + "\" src=\"" + datapoints[neighbor_idx] + "\" width=\"100\" height=\"100\" /></a>"
+		}
+		str += "</div>";
+
+		similarity_el.innerHTML = str;
+		return false;
 	}
 
     // HACK(kayvonf): This is a function that filters rows according to a predicate.
@@ -674,6 +747,8 @@ Sort rows by
 <h3>Dataset Info</h3>
 
 <div id="data_info">No data loaded.</div>
+
+<div id="similarity"></div>
 
 <h3>Help</h3>
 
