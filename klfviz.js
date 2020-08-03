@@ -230,31 +230,6 @@ class LFViz {
 
 				var str = "<p>Datapoint: " + idx + " of " + this.num_rows + "<p/>";
 
-				var base = this.num_lf*idx;
-				str += "<p>";
-				if (this.ground_truth_labels.length != 0) {
-
-					var value_str = "";
-
-					if (this.ground_truth_labels[idx] == 1)
-						value_str = "true";
-					else if (this.ground_truth_labels[idx] == -1)
-						value_str = "false";
-					else 
-						value_str = "unknown";
-
-					str += "<div>Ground truth: " + value_str + "</div>";
-				}
-				str += "<div>LM score: "+ this.model_scores[idx].toPrecision(4) + "</div>"
-				str += "<div>LF votes: ";
-				for (var i=0;i<this.num_lf; i++) {
-					str += this.data_matrix[base + i];
-					if (i < this.num_lf-1)
-						str += ", "; 
-				}
-				str += "</div>";
-				str += "</p>";
-
 				if (this.datapoint_type == LFViz.DATAPOINT_TYPE_TEXT)
 					str += "<p>" + this.datapoints[idx] + "</p>";
 
@@ -271,6 +246,31 @@ class LFViz {
 					str += "<p><img class=\"similarity_thumb " + style_override + "\" src=\"" + this.datapoints[idx] + "\" width=\"" +
                            this.preview_div_el.clientWidth + "\" height=\"" + this.preview_div_el.clientWidth + "\" /></p>";
 				}
+
+				str += "<p>";
+				if (this.ground_truth_labels.length != 0) {
+
+					var value_str = "";
+
+					if (this.ground_truth_labels[idx] == 1)
+						value_str = "true";
+					else if (this.ground_truth_labels[idx] == -1)
+						value_str = "false";
+					else 
+						value_str = "unknown";
+
+					str += "<div>Ground truth: " + value_str + "</div>";
+				}
+				str += "<div>LM score: "+ this.model_scores[idx].toPrecision(4) + "</div>"
+				str += "<div>LF votes: ";
+				var base = this.num_lf*idx;
+				for (var i=0;i<this.num_lf; i++) {
+					str += this.data_matrix[base + i];
+					if (i < this.num_lf-1)
+						str += ", "; 
+				}
+				str += "</div>";
+				str += "</p>";
 
                 // FIXME(kayvonf): terrible hack. Hardcoding this event handler for now
                 str += "<p><a href=\"#\" onclick=\"handle_view_similar(" + idx + ")\">View Similar Datapoints</p>"

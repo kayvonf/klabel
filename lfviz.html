@@ -161,6 +161,7 @@
 		var data_info_el = document.getElementById('data_info');  
 		var contents = "<p>";
 		contents += "<div>Description: " + dataset_description + "</div>";
+		contents += "<div>Num datapoints: " + (num_train + num_val) + "</div>";
 		contents += "<div>Num train: " + num_train + "</div>";
 		contents += "<div>Num val: " + num_val + "</div>";
 		contents += "<div>Num LFs: " + num_lf + "</div>";
@@ -702,7 +703,8 @@
 	<div id="preview_div" style="padding-left: 5px; width: 256px; height: 500px; float: left;">&nbsp;</div>
 </div>
 
-<div style="clear: both;">
+<p style="clear: both;">
+<div>
 	<span id="toggle_extended_text">Showing data BEFORE extension.</span>
 	<button id="toggle_extended_button" type="button" onclick="handle_toggle_show_extended()">Show Post-Extension Data</button>
 </div>
@@ -739,7 +741,7 @@ Sort rows by
     <button type="button" onclick="handle_change_row_filter_mask()">Set Filter</button>
     <button type="button" onclick="handle_clear_row_filter_mask()">Clear Filter</button>
 </div>
-
+</p>
 
 <h3>Dataset Info</h3>
 
