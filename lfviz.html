@@ -644,9 +644,7 @@
 			} else if (sort_value == "sort_by_ground_truth_label") {
 				// use ground truth label
 				value = ground_truth_labels[i];
-			} else if (sort_value == "sort_by_dist_to_selected") {
-				// if there is an item selected, sort datapoints by distance to selected
-				console.log("Not implemented yet...")
+
 			} else if (sort_value == "sort_by_change_from_extension") {
 				// sort key is the change in label model output between the extended and non-extensed label models					
 				value = prob_labels_ext[i] - prob_labels_noext[i];
@@ -714,9 +712,8 @@ Sort rows by
 	<select id="sort_by_selection" onchange="handle_sort_change()">
        <option value="sort_by_none">Original data order</option>
        <option value="sort_by_label_model">Label model score</option>
-       <option value="sort_by_change_from_extension">Magnitude of label model change</option>
+       <option value="sort_by_change_from_extension">Label model change (from extension)</option>
        <option value="sort_by_ground_truth_label">Ground truth label</option>
-       <option value="sort_by_dist_from_selected" disabled>Distance from selected</option>
        <option value="sort_by_num_positive">Num positive votes</option>
        <option value="sort_by_num_negative">Num negative votes</option>
        <option value="sort_by_num_abstain">Num abstains</option>

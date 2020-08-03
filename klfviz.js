@@ -92,6 +92,13 @@ class LFViz {
 		var spaced_col_width = this.display_el_width*this.num_lf + this.display_col_sep;
 		var col = Math.floor(this.cursorx / spaced_col_width);
 
+		// check to see if cursor is within the extent of the column, or in the margin to the right?
+		// NOTE(kayvonf): I removed this check because I thought the image "flash" that occurs when the
+		// cursor goes into the margin and the highlight disappears was jarring
+		// 
+		//if (this.cursorx - (col * spaced_col_width) > (this.display_el_width*this.num_lf))
+		//	return -1;
+
 		// compute index
 		var rows_per_col = Math.floor(this.main_canvas_el.height / this.display_el_height);
 		return col * rows_per_col + row;
@@ -398,10 +405,16 @@ class LFViz {
 	}
 
 	handle_canvas_click = event => {
-		if (this.has_selection())
+
+		var idx = this.get_highlighted_datapoint();
+
+		// click on currently selected item to clear
+		if (this.has_selection() && idx == this.get_selection()) {
 			this.clear_selection();
-		else
+		} else {
 			this.make_selection();
+		}
+
 		this.render();
 		this.update_preview();
 	}
