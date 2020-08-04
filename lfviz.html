@@ -553,7 +553,7 @@
 		data_filters.push( new FilterDef("Label model", ["positive", "negative", "correct", "incorrect"]) );
 		data_filters.push( new FilterDef("Ground truth", ["positive", "negative", "exists"]) );
 		for (var i=0; i<num_lf; i++) {
-			data_filters.push( new FilterDef(lf_names[i], individual_lf_options) );
+			data_filters.push( new FilterDef("LF: " + lf_names[i], individual_lf_options) );
 		}
 
 		// update the filter selection dropdown box with all the available filters
@@ -577,6 +577,8 @@
 		var select_box = document.getElementById("select_lf");		
 		var select_value_box = document.getElementById("select_lf_status");
 
+		var cur_option_val = select_value_box.value;
+
 		console.log("Selected: " + select_box.value);
 
 		for (var i=0; i<data_filters.length; i++) {
@@ -589,7 +591,12 @@
 					var option = document.createElement("option");
 					option.text = data_filters[i].options[j];
 					option.value = data_filters[i].options[j];
-					select_value_box.appendChild(option);				
+					select_value_box.appendChild(option);
+
+					// for user convenince, if the option for the only filter is still valid for the new filter, keep it!
+					if (option.value == cur_option_val) {
+						option.selected = true;
+					}				
 				}
 
 				handle_filter_change();
@@ -776,7 +783,7 @@
 			// individual labeling function
 			var lf_select;
 			for (var i=0; i<num_lf; i++) {
-				if (lf_names[i] == select_lf_box.value) {
+				if ("LF: " + lf_names[i] == select_lf_box.value) {
 					lf_select = i;
 					break;
 				}
