@@ -925,8 +925,8 @@
 					value = num_positive;
 				else if (sort_value == "sort_by_num_negative")
 					value = num_negative;
-				else if (sort_value == "sort_by_num_abstain")
-					value = num_abstain;
+				else if (sort_value == "sort_by_num_vote")
+					value = num_positive + num_negative;
 			}
 			index_list.push([i, value]);
 		}
@@ -975,7 +975,7 @@ Sort rows by
        <option value="sort_by_ground_truth_label">Ground truth label</option>
        <option value="sort_by_num_positive">Num positive votes</option>
        <option value="sort_by_num_negative">Num negative votes</option>
-       <option value="sort_by_num_abstain">Num abstains</option>
+       <option value="sort_by_num_vote">Num votes</option>
     </select>
 </div>
 
