@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>KLabeler Video Test</title>
+<style>
+	body {
+		font-family: Helvetica, Arial, sans-seris;
+		font-size: 10pt;
+		color: #c0c0c0;
+		background: #404040;
+	}
+
+	body a {
+		color: #d0d0d0;
+	}
+
+	.bold_text {
+		font-weight: bold;
+	}
+
+</style>
+
+<script>
+	
+	var vid_el = null;
+
+	function handle_onload() {
+		vid_el = document.getElementById('my_video');
+		update_current_time();
+	}
+
+	function handle_prev() {
+
+	}
+
+	function handle_next() {
+
+	}
+
+	function handle_curtime() {
+		update_current_time();
+	}
+
+	function update_current_time() {
+		var t = vid_el.currentTime;
+		var el = document.getElementById('video_current_time');
+		el.innerHTML = "Current time: " + t + " sec";
+	}
+
+	function get_video_fps() {
+		var el = document.getElementById('video_fps');
+		el.innerHTML = "";
+	}
+
+</script>
+</head>
+
+<body onload="handle_onload()">
+
+<div>
+	<!-- good tips:
+	      http://html5doctor.com/video-canvas-magic/
+		  http://www.inconduit.com/smpte/
+    -->
+
+	<video id="my_video" controls>
+		<source src="media/shortvideo.mp4" type="video/mp4">	
+	</video>
+</div>
+
+<div>
+	<button id="prev_button" type="button" onclick="handle_prev()">Prev</button>
+	<button id="next_button" type="button" onclick="handle_next()">Next</button>
+	<button id="time_button" type="button" onclick="handle_curtime()">Current Time</button>
+</div>
+<div id="video_current_time">
+  NOT SPECIFIED YET
+</div>
+<div id="video_fps">
+  NOT SPECIFIED YET
+</div>
+
+
+</body>
+</html>
