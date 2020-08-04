@@ -49,12 +49,25 @@
 
 <script>
 
+	class FilterDef {
+		constructor(filter, options) {
+			this.filter = filter;
+			this.options = options;
+		}
+	}
+
 	// hacky enum
-	var LF_OUTPUT_POSITIVE = 1
-	var LF_OUTPUT_NEGATIVE = -1
+	var LF_OUTPUT_NEGATIVE = -1;
 	var LF_OUTPUT_ABSTAIN = 0;
-	var LF_OUTPUT_DISAGREE = -2
-     
+	var LF_OUTPUT_POSITIVE = 1;
+	var LF_OUTPUT_VOTES = 2;
+	var LF_OUTPUT_AGREES = 3;
+	var LF_OUTPUT_DISAGREES = 4;
+    var LF_OUTPUT_EXISTS = 5;
+    var LF_OUTPUT_CORRECT = 6;
+    var LF_OUTPUT_INCORRECT = 7;
+    var LF_OUTPUT_UNKNOWN = 8;
+
 	var lfviz = new LFViz;
 
 	///////////////////////////////////////////////////////////
@@ -104,6 +117,8 @@
 
 	var pending_data_load_events = 0;
 
+	var data_filters = [];
+
 	// called when the dataset info file has been downloaded
 	function handle_info_file_loaded(info) {
 
@@ -150,12 +165,7 @@
 		console.log("Data load complete: train size=" + num_train + ", val size=" + num_val + ", num LFs=" + num_lf);
 
 		// update the filter selection dropdown box to include options for the various labeling functions
-		var select_box = document.getElementById("select_lf");
-		for (var i=0; i<num_lf; i++) {
-			var option = document.createElement("option");
-			option.text = lf_names[i];
-			select_box.add(option);
-		}
+		setup_datapoint_filters();
 
 		// update the DOM to display stats about the dataset 
 		var data_info_el = document.getElementById('data_info');  
@@ -175,12 +185,12 @@
 		data_info_el.innerHTML = contents;			
 
 		// communicate data to the viz widget
-		var lf_matrix = use_noext_data  ? lf_matrix_noext : lf_matrix_ext;
+		var lf_matrix = use_noext_data ? lf_matrix_noext : lf_matrix_ext;
 		var prob_labels = use_noext_data ? prob_labels_noext : prob_labels_ext;
 		lfviz.set_data(num_total, num_lf, lf_matrix, prob_labels, ground_truth_labels, datapoint_type, datapoints);
 
 		// data has changed, so recompute filters and sorts
-		reset_row_filter_mask();
+		clear_filter();
 		handle_sort_change();
 	}
 
@@ -394,7 +404,6 @@
 
 		var similarity_el = document.getElementById("similarity");
 
-
 		var num_thumbs = Math.min(250, dist_rankings[image_idx].length);
 
 		var str = "<h3>Top " + num_thumbs + " most similar images to datapoint: " + image_idx + "</h3>"
@@ -532,50 +541,285 @@
 		}
 	}
 
-	function reset_row_filter_mask() {
+	function setup_datapoint_filters() {
+
+		// these are the options for any individual labeling function 
+		var individual_lf_options = ["positive", "negative", "abstain", "votes", "votes+disagrees", "correct", "incorrect"];
+
+		data_filters.push( new FilterDef("[no filter]", []) );
+		data_filters.push( new FilterDef("All LFs", ["positive", "negative", "abstain", "votes"]) );
+		data_filters.push( new FilterDef("All voting LFs", ["positive", "negative", "agree"]) );
+		data_filters.push( new FilterDef("Any LF", ["positive", "negative", "abstain", "votes", "votes+disagrees", "correct", "incorrect"]) );
+		data_filters.push( new FilterDef("Label model", ["positive", "negative", "correct", "incorrect"]) );
+		data_filters.push( new FilterDef("Ground truth", ["positive", "negative", "exists"]) );
+		for (var i=0; i<num_lf; i++) {
+			data_filters.push( new FilterDef(lf_names[i], individual_lf_options) );
+		}
+
+		// update the filter selection dropdown box with all the available filters
+		var select_box = document.getElementById("select_lf");
+
+		for (var i=0; i<data_filters.length; i++) {
+			var option = document.createElement("option");
+			option.text = data_filters[i].filter;
+			option.value = data_filters[i].filter;
+			select_box.appendChild(option);
+		}
+	}
+
+	function clear_filter() {
 		compute_row_filter_mask(-1, 0);
 		lfviz.set_row_filter_mask(row_filter_mask);
 	}
 
-	function handle_clear_row_filter_mask() {
-		reset_row_filter_mask();
+	function handle_filter_part1_change() {
+
+		var select_box = document.getElementById("select_lf");		
+		var select_value_box = document.getElementById("select_lf_status");
+
+		console.log("Selected: " + select_box.value);
+
+		for (var i=0; i<data_filters.length; i++) {
+			if (data_filters[i].filter == select_box.value) {
+
+				// clear out the old
+				select_value_box.innerHTML = "";
+							
+				for (var j=0; j<data_filters[i].options.length; j++) {
+					var option = document.createElement("option");
+					option.text = data_filters[i].options[j];
+					option.value = data_filters[i].options[j];
+					select_value_box.appendChild(option);				
+				}
+
+				handle_filter_change();
+				break;
+			}
+		}
 	}
 
-	function handle_change_row_filter_mask() {
+	// Filters rows according to a predicate and stores result in row_filter_mask
+	function handle_filter_change() {
 
 		var lf_select = 0;
 		var lf_value = 1;
 		var select_lf_box = document.getElementById("select_lf");
 		var select_value_box = document.getElementById("select_lf_status");
 
-		// which LF's to look at
-		if (select_lf_box.value == "lf_all")
-			lf_select = -2;
-		else if (select_lf_box.value == "lf_all_voting")
-			lf_select = -3;
-		else if (select_lf_box.value == "lf_any")
-			lf_select = -4;
+		row_filter_mask = [];
+
+		var num_total = num_train + num_val;
+		var lf_matrix = (use_noext_data) ? lf_matrix_noext : lf_matrix_ext;	
+		var prob_labels = (use_noext_data) ? prob_labels_noext : prob_labels_ext;
+
+		var criteria;
+		if (select_value_box.value == "positive")
+			criteria = LF_OUTPUT_POSITIVE;
+		else if (select_value_box.value == "negative")
+			criteria = LF_OUTPUT_NEGATIVE;
+		else if (select_value_box.value == "abstain")
+			criteria = LF_OUTPUT_ABSTAIN;
+		else if (select_value_box.value == "votes")
+			criteria = LF_OUTPUT_VOTES;
+		else if (select_value_box.value == "agree")
+			criteria = LF_OUTPUT_AGREES;
+		else if (select_value_box.value == "votes+disagrees")
+			criteria = LF_OUTPUT_DISAGREES;
+		else if (select_value_box.value == "exists")
+			criteria = LF_OUTPUT_EXISTS;
+		else if (select_value_box.value == "correct")
+			criteria = LF_OUTPUT_CORRECT;
+		else if (select_value_box.value == "incorrect")
+			criteria = LF_OUTPUT_INCORRECT;
 		else {
+			criteria = LF_OUTPUT_UNKNOWN;
+			console.log("WARNING: Unknown filter description.");
+		}
+
+		if (select_lf_box.value == "[no filter]") {
+			for (var i=0; i<num_total; i++) {
+				row_filter_mask[i] = true;
+			}		
+		}
+
+		else if (select_lf_box.value == "All LFs") {
+			// ["positive", "negative", "abstain", "votes"]
+
+			for (var i=0; i<num_total; i++) {
+				row_filter_mask[i] = true;
+				var idx = i*num_lf;
+				for (var j=0; j<num_lf; j++) {
+					if (criteria == LF_OUTPUT_VOTES && lf_matrix[idx + j] == 0)
+						row_filter_mask[i] = false;
+					if (criteria != LF_OUTPUT_VOTES && lf_matrix[idx+j] != criteria)
+						row_filter_mask[i] = false;
+				}
+			}	
+		}
+
+		else if (select_lf_box.value == "All voting LFs") {
+			// ["positive", "negative", "agree"]
+			
+			for (var i=0; i<num_total; i++) {
+
+				row_filter_mask[i] = true;
+
+				var idx = i*num_lf;
+				var num_votes = 0;
+				var agree_value;
+
+				for (var j=0; j<num_lf; j++) {
+
+					// LF does not vote
+					if (lf_matrix[idx + j] == LF_OUTPUT_ABSTAIN)
+						continue;
+					
+					num_votes++;
+
+					// record the vote of the first LF that votes
+					if (num_votes == 1)
+						agree_value = lf_matrix[idx + j];
+
+					// require agreement
+					if (criteria == LF_OUTPUT_AGREES) {
+						if (num_votes > 1 && lf_matrix[idx + j] != agree_value) {
+							// disagreement detected
+							row_filter_mask[i] = false;
+						}
+					} else if (lf_matrix[idx + j] != criteria) {
+						row_filter_mask[i] = false;
+					}
+				}
+
+				// row shouldn't pass an "all voting LFs" filter if there are no voting LFs
+				// FIXME(kayvonf): We current allow a row to pass the filter "all voting LFs agree" even if
+				// there is only 1 voting LF.  Is this the desired behavior?
+				if (num_votes < 0)
+					row_filter_mask[i] = false;
+			}
+		}
+
+		else if (select_lf_box.value == "Any LF") {
+			// ["positive", "negative", "abstain", "votes", "votes+disagrees", "correct", "incorrect"]
+
+			for (var i=0; i<num_total; i++) {
+				row_filter_mask[i] = false;
+
+				var idx = i*num_lf;
+				for (var j=0; j<num_lf; j++) {
+
+					if ( (criteria == LF_OUTPUT_POSITIVE || criteria == LF_OUTPUT_NEGATIVE || criteria == LF_OUTPUT_ABSTAIN) && lf_matrix[idx+j] == criteria) {
+						row_filter_mask[i] = true;
+						break;
+					}
+
+					else if (criteria == LF_OUTPUT_VOTES && lf_matrix[idx+j] != LF_OUTPUT_ABSTAIN) {
+						row_filter_mask[i] = true;
+						break;
+					}
+
+					else if (criteria == LF_OUTPUT_CORRECT && lf_matrix[idx+j] != LF_OUTPUT_ABSTAIN && lf_matrix[idx+j] == ground_truth_labels[i]) {
+						row_filter_mask[i] = true;
+						break;				
+					}
+
+					else if (criteria == LF_OUTPUT_INCORRECT && lf_matrix[idx+j] != LF_OUTPUT_ABSTAIN && lf_matrix[idx+j] != ground_truth_labels[i]) {
+						row_filter_mask[i] = true;
+						break;	
+					}
+
+					else if (criteria == LF_OUTPUT_DISAGREES) {
+						for (var k=0; k<num_lf; k++) {
+							if (j != k && 
+								lf_matrix[idx+j] != LF_OUTPUT_ABSTAIN &&
+								lf_matrix[idx+k] != LF_OUTPUT_ABSTAIN &&
+								lf_matrix[idx+j] != lf_matrix[idx+k]) {
+								row_filter_mask[i] = true;
+								break;
+							}
+						}
+
+						if (row_filter_mask[i] == true)
+							break;
+					}
+				}
+			}
+		}
+
+		else if (select_lf_box.value == "Label model") {
+			// ["positive", "negative", "correct", "incorrect"]
+
+			for (var i=0; i<num_total; i++) {
+				var label_model_result = (prob_labels[i] >= 0.5) ? LF_OUTPUT_POSITIVE : LF_OUTPUT_NEGATIVE;
+
+				if ( ((criteria == LF_OUTPUT_POSITIVE || criteria == LF_OUTPUT_NEGATIVE) && label_model_result == criteria) ||
+					 (criteria == LF_OUTPUT_CORRECT   && label_model_result == ground_truth_labels[i]) ||
+					 (criteria == LF_OUTPUT_INCORRECT && label_model_result != ground_truth_labels[i]) ) {
+					row_filter_mask[i] = true;
+				}
+			}
+
+		}
+
+		else if (select_lf_box.value == "Ground truth") {
+			// ["positive", "negative", "exists"]
+
+			for (var i=0; i<num_total; i++) {
+				if ( (criteria == LF_OUTPUT_EXISTS && (ground_truth_labels[i] == LF_OUTPUT_POSITIVE ||
+					                                   ground_truth_labels[i] == LF_OUTPUT_NEGATIVE)) ||
+				    (criteria != LF_OUTPUT_EXISTS && ground_truth_labels[i] == criteria))
+					row_filter_mask[i] = true;
+			}
+		}
+
+		else {
+			// individual labeling function
+			var lf_select;
 			for (var i=0; i<num_lf; i++) {
 				if (lf_names[i] == select_lf_box.value) {
 					lf_select = i;
 					break;
 				}
 			}
-		}
-		
-		// what values are important
-		if (select_value_box.value == "positive")
-			lf_value = LF_OUTPUT_POSITIVE;
-		else if (select_value_box.value == "negative")
-			lf_value = LF_OUTPUT_NEGATIVE;
-		else if (select_value_box.value == "abstain")
-			lf_value = LF_OUTPUT_ABSTAIN;
-		else {
-			lf_value = LF_OUTPUT_DISAGREE;   // disagrees
-		}	
+			// ["positive", "negative", "abstain", "votes", "votes+disagrees"]
 
-		compute_row_filter_mask(lf_select, lf_value); 
+			for (var i=0; i<num_total; i++) {			
+
+				row_filter_mask[i] = false;
+				var idx = i*num_lf;
+
+				// FIXME(kayvonf): the logic below is all code that is duplicated from the "Any LF case" above (needs refactor!)
+
+				if ( (criteria == LF_OUTPUT_POSITIVE || criteria == LF_OUTPUT_NEGATIVE || criteria == LF_OUTPUT_ABSTAIN) && lf_matrix[idx+lf_select] == criteria) {
+					row_filter_mask[i] = true;
+				}
+
+				else if (criteria == LF_OUTPUT_VOTES && lf_matrix[idx+lf_select] != LF_OUTPUT_ABSTAIN) {
+					row_filter_mask[i] = true;
+				}
+
+				else if (criteria == LF_OUTPUT_CORRECT && lf_matrix[idx+lf_select] != LF_OUTPUT_ABSTAIN && lf_matrix[idx+lf_select] == ground_truth_labels[i]) {
+					row_filter_mask[i] = true;			
+				}
+
+				else if (criteria == LF_OUTPUT_INCORRECT && lf_matrix[idx+lf_select] != LF_OUTPUT_ABSTAIN && lf_matrix[idx+lf_select] != ground_truth_labels[i]) {
+					row_filter_mask[i] = true;	
+				}
+
+				else if (criteria == LF_OUTPUT_DISAGREES) {
+					for (var k=0; k<num_lf; k++) {
+						if (lf_select != k && 
+							lf_matrix[idx+lf_select] != LF_OUTPUT_ABSTAIN &&
+							lf_matrix[idx+k] != LF_OUTPUT_ABSTAIN &&
+							lf_matrix[idx+lf_select] != lf_matrix[idx+k]) {
+							row_filter_mask[i] = true;
+							break;
+						}
+					}
+				}
+			}
+		}
+
 		lfviz.set_row_filter_mask(row_filter_mask);
 	}
 
@@ -602,13 +846,11 @@
 			button.innerHTML = 'Show Original LF Data';
 		}
 
-		// update UI
-
 		// update data in the viz widget
 		lfviz.update_data(lf_matrix, prob_labels);
 
 		// recompute masks and sorts since the data input to these operations has changed
-		reset_row_filter_mask();
+		handle_filter_change();
 		handle_sort_change();
 	}
 
@@ -724,22 +966,12 @@ Sort rows by
 
 <div>
 	Only show data points where 
-	<select id="select_lf">
-       <option value="lf_all">all labeling funcs</option>
-       <option value="lf_all_voting">all voting labeling funcs</option>
-       <option value="lf_any">any labeling func</option>
+	<select id="select_lf"  style="width: 175px;" onchange="handle_filter_part1_change()">
     </select>
     is
-    <select id="select_lf_status">
-       <option value="positive">positive</option>
-       <option value="negative">negative</option>
-       <option value="abstain">abstains</option>
-       <option value="disagree">votes, but disagrees</option>
+    <select id="select_lf_status" style="width: 175px;" onchange="handle_filter_change()">
     </select>
     .
-
-    <button type="button" onclick="handle_change_row_filter_mask()">Set Filter</button>
-    <button type="button" onclick="handle_clear_row_filter_mask()">Clear Filter</button>
 </div>
 </p>
 

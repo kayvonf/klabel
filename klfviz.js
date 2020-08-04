@@ -3,8 +3,6 @@
 
 
 // TODO LIST:
-//   -- Fix filter select options
-//   -- Add KNN support
 //   -- a bunch of data in the dump is of type float and could be integer
 
 class LFViz {
@@ -108,7 +106,9 @@ class LFViz {
 	get_highlighted_datapoint() {
 
 		var viz_row_idx = this.get_highlighted_viz_cell();
-		if (viz_row_idx < this.num_rows)
+
+		// should be a valid row, and a row that is not filtered out
+		if (viz_row_idx < this.num_rows && this.row_filter_mask[this.row_sorting[viz_row_idx]] == true)
 			return this.row_sorting[viz_row_idx];
 		else
 			return -1;
