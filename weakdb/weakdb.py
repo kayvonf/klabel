@@ -329,9 +329,11 @@ class WeakDB:
 			f.write(json.dumps(self.datapoints))
 
 		if has_extended_data:
+			assert len(self.extended_lf_matrix) > 0
 			with open(self.get_lf_matrix_json_filename(target_dir, "ext"), "wt") as f:
 				f.write(json.dumps(self.extended_lf_matrix))
 
+			assert len(self.extended_prob_labels) > 0
 			with open(self.get_prob_labels_json_filename(target_dir, "ext"), "wt") as f:
 				f.write(json.dumps(self.extended_prob_labels))
 

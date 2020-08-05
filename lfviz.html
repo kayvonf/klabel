@@ -389,6 +389,11 @@
 		data_info_el.innerHTML = contents;			
 
 		display_ext_data = false;
+		if (has_extended_data) {
+			var button = document.getElementById("toggle_extended_button");
+			button.style.visibility = "visible";
+		}
+
 
 		// communicate data to the viz widget
 		var lf_matrix = display_ext_data ? lf_matrix_ext : lf_matrix_noext;
@@ -958,12 +963,12 @@
 		if (display_ext_data) {
 			lf_matrix = lf_matrix_ext;
 			prob_labels = prob_labels_ext;
-			text.innerHTML = 'Showing data AFTER extension.';
-			button.innerHTML = 'Show Original LF Data';
+			text.innerHTML = 'Showing data with LF extension.';
+			button.innerHTML = 'Show Not-Extended Data';
 		} else {
 			lf_matrix = lf_matrix_noext;
 			prob_labels = prob_labels_noext;
-			text.innerHTML = 'Showing data BEFORE extension.';
+			text.innerHTML = 'Showing data without LF extension.';
 			button.innerHTML = 'Show Extended Data';
 		}
 
@@ -1062,15 +1067,15 @@
 
 <body onload="handle_onload()">
 
-<div id="labeled_div">
+<div>
 	<canvas id="main_canvas" width="940" height="550" style="border: 1px solid #c0c0c0; display: block; float: left;" ></canvas>
 	<div id="preview_div" style="padding-left: 5px; width: 256px; height: 500px; float: left;">&nbsp;</div>
 </div>
 
 <p style="clear: both;">
 <div>
-	<span id="toggle_extended_text">Showing data BEFORE extension.</span>
-	<button id="toggle_extended_button" type="button" onclick="handle_toggle_show_extended()">Show Post-Extension Data</button>
+	<span id="toggle_extended_text">Showing data without LF extension.</span>
+	<button id="toggle_extended_button" type="button" style="visibility: hidden;" onclick="handle_toggle_show_extended()">Show Extended Data</button>
 </div>
 
 <div>
