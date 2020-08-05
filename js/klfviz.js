@@ -222,8 +222,9 @@ class LFViz {
 		var idx;
 		if (this.has_selection())
 			idx = this.cur_selection_idx;
-		else
+		else {
 			idx = this.get_highlighted_datapoint();
+		}
 
 		if (idx >= 0) {
 
@@ -233,6 +234,7 @@ class LFViz {
 			}
 
     	} else {
+    		this.preview_idx = -1;
     		this.data_preview_func(-1);
 		}
 	}
