@@ -94,6 +94,7 @@ class WeakDB:
 
 	def set_datapoints(self, datapoint_type, datapoints):
 		assert len(datapoints) == (self.num_train + self.num_val)
+		assert datapoint_type == WeakDB.DATAPOINT_TYPE_TEXT or datapoint_type == WeakDB.DATAPOINT_TYPE_IMAGE_URL
 		self.datapoint_type = datapoint_type
 		self.datapoints = datapoints
 
@@ -315,12 +316,15 @@ class WeakDB:
 		with open(self.get_dump_info_json_filename(target_dir), "wt") as f:
 			f.write(json.dumps(dump_info))
 
+		assert len(self.lf_matrix) > 0
 		with open(self.get_lf_matrix_json_filename(target_dir, "noext"), "wt") as f:
 			f.write(json.dumps(self.lf_matrix))
 
+		assert len(self.prob_labels) > 0
 		with open(self.get_prob_labels_json_filename(target_dir, "noext"), "wt") as f:
 			f.write(json.dumps(self.prob_labels))
 
+		assert len(self.datapoints) > 0
 		with open(self.get_datapoints_json_filename(target_dir), "wt") as f:
 			f.write(json.dumps(self.datapoints))
 

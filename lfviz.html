@@ -123,7 +123,7 @@
 	var available_filters;
 
 	// whether or not to show the results from the "extended" labeling functions
-	var display_noext_data;
+	var display_ext_data;
 
 	// This mask denoting the rows that should be rendered in the visualizer
 	var row_filter_mask;
@@ -388,9 +388,11 @@
 		contents += "</p>"
 		data_info_el.innerHTML = contents;			
 
+		display_ext_data = false;
+
 		// communicate data to the viz widget
-		var lf_matrix = display_noext_data ? lf_matrix_noext : lf_matrix_ext;
-		var prob_labels = display_noext_data ? prob_labels_noext : prob_labels_ext;
+		var lf_matrix = display_ext_data ? lf_matrix_ext : lf_matrix_noext;
+		var prob_labels = display_ext_data ? prob_labels_ext : prob_labels_noext;
 		lfviz.set_data(num_total, num_lf, lf_matrix, prob_labels, handle_data_preview);
 
 		// data has changed, so recompute filters and sorts
@@ -482,8 +484,8 @@
 		} else {
 
 			var num_total = num_train + num_val;
-			var lf_matrix = display_noext_data ? lf_matrix_noext : lf_matrix_ext;
-			var prob_labels = display_noext_data ? prob_labels_noext : prob_labels_ext;
+			var lf_matrix = display_ext_data ? lf_matrix_ext : lf_matrix_noext;
+			var prob_labels = display_ext_data ? prob_labels_ext : prob_labels_noext;
 
 			var str = "<p>Datapoint: " + idx + " of " + num_total + "<p/>";
 
@@ -548,8 +550,7 @@
 			disagree_check = true;
 
 		var num_total = num_train + num_val;
-
-		var lf_matrix = (display_noext_data) ? lf_matrix_noext : lf_matrix_ext;
+		var lf_matrix = (display_ext_data) ? lf_matrix_ext : lf_matrix_noext;
 
 		//
 		// no filter
@@ -727,8 +728,8 @@
 		row_filter_mask = [];
 
 		var num_total = num_train + num_val;
-		var lf_matrix = (display_noext_data) ? lf_matrix_noext : lf_matrix_ext;	
-		var prob_labels = (display_noext_data) ? prob_labels_noext : prob_labels_ext;
+		var lf_matrix = (display_ext_data) ? lf_matrix_ext : lf_matrix_noext;	
+		var prob_labels = (display_ext_data) ? prob_labels_ext : prob_labels_noext;
 
 		var criteria;
 		if (select_value_box.value == "positive")
@@ -943,7 +944,10 @@
 
 	function handle_toggle_show_extended() {
 
-		display_noext_data = !display_noext_data;
+		if (!has_extended_data)
+			return;
+
+		display_ext_data = !display_ext_data;
 
 		var lf_matrix;
 		var prob_labels;
@@ -951,17 +955,16 @@
 		var button = document.getElementById("toggle_extended_button");
 		var text = document.getElementById("toggle_extended_text");
 
-		if (display_noext_data) {
-			lf_matrix = lf_matrix_noext;
-			prob_labels = prob_labels_noext;
-			text.innerHTML = 'Showing data BEFORE extension.';
-			button.innerHTML = 'Show Extended Data';
-
-		} else {
+		if (display_ext_data) {
 			lf_matrix = lf_matrix_ext;
 			prob_labels = prob_labels_ext;
 			text.innerHTML = 'Showing data AFTER extension.';
 			button.innerHTML = 'Show Original LF Data';
+		} else {
+			lf_matrix = lf_matrix_noext;
+			prob_labels = prob_labels_noext;
+			text.innerHTML = 'Showing data BEFORE extension.';
+			button.innerHTML = 'Show Extended Data';
 		}
 
 		// update data in the viz widget
@@ -988,8 +991,8 @@
 		var sort_value = sort_box.value;
 
 		var num_total = num_train + num_val;
-		var lf_matrix = (display_noext_data) ? lf_matrix_noext : lf_matrix_ext;
-		var prob_labels = (display_noext_data) ? prob_labels_noext : prob_labels_ext;
+		var lf_matrix = (display_ext_data) ? lf_matrix_ext : lf_matrix_noext;
+		var prob_labels = (display_ext_data) ? prob_labels_ext : prob_labels_noext;
 
 		var index_list = [];
 
