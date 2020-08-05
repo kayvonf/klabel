@@ -54,7 +54,11 @@ class WeakDB:
 
 		self.ground_truth_labels = []		# ground truth labels
 
-		self.sorted_dists = []				# list of lists of k-nn indices (in closest to farthest order) 
+		self.sorted_dists = []				# list of lists of k-nn indices (in closest to farthest order)
+
+		# set default LF names
+		for i in range(self.num_lf):
+			self.lf_names.append("LF%2d" % i)
 
 
 	def set_name(self, dump_name):
@@ -273,9 +277,9 @@ class WeakDB:
 		datapoints_train = pickle.load(open(self.get_linden_image_paths_pkl_filename(linden_src_dir, LINDEN_TRAINING_SET), "rb"))
 		datapoints_val = pickle.load(open(self.get_linden_image_paths_pkl_filename(linden_src_dir, LINDEN_VAL_SET), "rb"))
 		for row in datapoints_train:
-			self.datapoints.append(row)
+			self.datapoints.append("%s-1.jpg" % row[0:-4])
 		for row in datapoints_val:
-			self.datapoints.append(row)
+			self.datapoints.append("%s-1.jpg" % row[0:-4])
 
 		# process the distance matrices
 		self.sorted_dists = []
@@ -293,7 +297,7 @@ class WeakDB:
 	def save_json(self, target_dir):
 		
 		has_extended_data = (len(self.extended_lf_matrix) != 0)
-		has_neighbor_data = (len(self.sorted_dists) != 0)
+		has_similarity_data = (len(self.sorted_dists) != 0)
 		has_ground_truth  = (len(self.ground_truth_labels) != 0)
 
 		dump_info = { "name" : self.dump_name,
@@ -304,7 +308,7 @@ class WeakDB:
 					  "datatype" : self.datapoint_type,
 					  "lf_names" : self.lf_names,
 					  "has_extended_data" : has_extended_data,
-					  "has_neighbor_data" : has_neighbor_data,
+					  "has_similarity_data" : has_similarity_data,
 					  "has_ground_truth"  : has_ground_truth
 					} 
 
@@ -317,6 +321,9 @@ class WeakDB:
 		with open(self.get_prob_labels_json_filename(target_dir, "noext"), "wt") as f:
 			f.write(json.dumps(self.prob_labels))
 
+		with open(self.get_datapoints_json_filename(target_dir), "wt") as f:
+			f.write(json.dumps(self.datapoints))
+
 		if has_extended_data:
 			with open(self.get_lf_matrix_json_filename(target_dir, "ext"), "wt") as f:
 				f.write(json.dumps(self.extended_lf_matrix))
@@ -328,10 +335,7 @@ class WeakDB:
 			with open(self.get_ground_truth_labels_json_filename(target_dir), "wt") as f:
 				f.write(json.dumps(self.ground_truth_labels))
 
-		if has_neighbor_data:
+		if has_similarity_data:
 			with open(self.get_similarity_json_filename(target_dir), "wt") as f:
 				f.write(json.dumps(self.sorted_dists))	
-
-		with open(self.get_datapoints_json_filename(target_dir), "wt") as f:
-			f.write(json.dumps(self.datapoints))
 
