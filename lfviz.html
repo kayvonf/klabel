@@ -66,6 +66,7 @@
 			this.urls = null;
 			this.anim_request = null;
 			this.last_paint_time = null;
+			this.delay = 0;
 			this.owns_events = null;
 		}
 
@@ -91,8 +92,9 @@
 			if (this.owns_events) {
 				this.dom_image.addEventListener("mouseover", this.handle_mouseover, false);
 				this.dom_image.addEventListener("mouseout", this.handle_mouseout, false);
+				this.start_animation(0);
 			} else {
-				this.start_animation();
+				this.start_animation(0);
 			}
 		}
 
@@ -109,7 +111,8 @@
 
 		animate() {
 			var current_time = performance.now();
-			if (current_time - this.last_paint_time > 100) {
+			if (current_time - this.last_paint_time > this.delay) {
+				this.delay = 100;
 				this.current_frame_idx++;
 				if (this.current_frame_idx == this.urls.length)
 					this.current_frame_idx = 0;
@@ -119,7 +122,12 @@
 			this.anim_request = requestAnimationFrame( () => this.animate());
 		}
 
-		start_animation() {
+		start_animation(initial_delay) {
+			
+			// animation could be running, so stop and restart
+			this.stop_animation();
+
+			this.delay = initial_delay;
 			this.last_paint_time = performance.now();
 			this.anim_request = requestAnimationFrame( () => this.animate());
 		}
@@ -131,7 +139,7 @@
 		}
 
 		handle_mouseover = event => {
-			this.start_animation();
+			this.start_animation(0);
 		}
 
 		handle_mouseout = event => {
