@@ -66,50 +66,62 @@
 			this.urls = null;
 			this.anim_request = null;
 			this.last_paint_time = null;
+			this.owns_events = null;
 		}
 
-		attach(dom_image, datapoint_idx, urls) {
+		// FIXME(kayvonf): the owns_events parameter exists because there are two ways this object
+		// gets attached to an image: the main preview way and the small thumbnail way.
+		// I will clean this up later.
+		attach(dom_image, datapoint_idx, urls, owns_events) {
 
 			if (this.dom_image != null)
-				detach();
+				this.detach();
 
 			this.dom_image = dom_image;
 			this.urls = urls;
 			this.datapoint_idx = datapoint_idx;
 			this.current_frame_idx = 1;
+			this.owns_events = owns_events;
 
 			// prefetch for animation purposes
 			this.images = [];
 			for (var i=0; i<this.urls.length; i++)
 				this.images[i] = new Image(this.urls[i]);
 
-			this.dom_image.addEventListener("mouseover", this.handle_mouseover, false);
-			this.dom_image.addEventListener("mouseout", this.handle_mouseout, false);
+			if (this.owns_events) {
+				this.dom_image.addEventListener("mouseover", this.handle_mouseover, false);
+				this.dom_image.addEventListener("mouseout", this.handle_mouseout, false);
+			} else {
+				this.start_animation();
+			}
 		}
 
 		detach() {
 			if (this.dom_image != null) {
-				this.dom_image.removeEventListener("mouseover", this.handle_mouseover, false);
-				this.dom_image.removeEventListener("mouseout", this.handle_mouseout, false);
+				this.stop_animation();
+				if (this.owns_events) {
+					this.dom_image.removeEventListener("mouseover", this.handle_mouseover, false);
+					this.dom_image.removeEventListener("mouseout", this.handle_mouseout, false);
+				}
 			}
 			this.dom_image = null;
 		}
 
-		time_step() {
+		animate() {
 			var current_time = performance.now();
-			if (current_time - this.last_paint_time > 200) {
+			if (current_time - this.last_paint_time > 100) {
 				this.current_frame_idx++;
 				if (this.current_frame_idx == this.urls.length)
 					this.current_frame_idx = 0;
 				this.dom_image.src = this.urls[this.current_frame_idx];
 				this.last_paint_time = current_time;
 			}
-			this.anim_request = requestAnimationFrame( () => this.time_step());
+			this.anim_request = requestAnimationFrame( () => this.animate());
 		}
 
 		start_animation() {
 			this.last_paint_time = performance.now();
-			this.anim_request = requestAnimationFrame( () => this.time_step());
+			this.anim_request = requestAnimationFrame( () => this.animate());
 		}
 
 		stop_animation() {
@@ -119,12 +131,10 @@
 		}
 
 		handle_mouseover = event => {
-			console.log("Mouse over image " + this.datapoint_idx);
 			this.start_animation();
 		}
 
 		handle_mouseout = event => {
-			console.log("Mouse out image " +  this.datapoint_idx);
 			this.stop_animation();
 		}
 	}
@@ -218,7 +228,8 @@
 	var preview_div;
 
 	// handles thumbnail animation
-	var thumbnail_widget = new ThumbnailWidget;
+	var preview_thumbnail_widget = new ThumbnailWidget;
+	var small_thumbnail_widget = new ThumbnailWidget;
 
 	// Entrypoint that initiates logic for loading data from the server via a sequence of async requests 
 	//
@@ -545,6 +556,15 @@
 		lfviz.set_selection(datapoint_idx);
 	}
 
+	function handle_thumbnail_mouseover(datapoint_idx) {
+		var img_el = document.getElementById("thumbnail_image_" + datapoint_idx);
+		small_thumbnail_widget.attach(img_el, datapoint_idx, datapoints[datapoint_idx], false);
+	}
+
+	function handle_thumbnail_mouseout(datapoint_idx) {
+		small_thumbnail_widget.detach();
+	}
+
 	function handle_view_similar(image_idx) {
 
 		var similarity_el = document.getElementById("similarity");
@@ -558,16 +578,26 @@
 
 			var neighbor_idx = similarity_rankings[image_idx][i];
 			
-			// FIXME(kayvonf): I currently hardcoded index for IMAGE_URL_SEQ case
-			var img_url = (datapoint_type == DATAPOINT_TYPE_IMAGE_URL) ? datapoints[neighbor_idx] : datapoints[neighbor_idx][1]; 
+			var img_url;
+			var img_events_str;
 
-			var style_override = ""
+			// FIXME(kayvonf): I currently hardcoded index for IMAGE_URL_SEQ case
+			if (datapoint_type == DATAPOINT_TYPE_IMAGE_URL) {
+				img_url = datapoints[neighbor_idx];
+				img_events_str = "";
+			} else {
+				img_url = datapoints[neighbor_idx][1];
+				img_events_str = "onmouseover=\"handle_thumbnail_mouseover(" + neighbor_idx + ")\" onmouseout=\"handle_thumbnail_mouseout(" + neighbor_idx + ")\"";
+			}
+
+			var style_override = "";
 			if (ground_truth_labels[neighbor_idx] == 1)
 				style_override = "similarity_thumb_positive";
 			else if (ground_truth_labels[neighbor_idx] == -1)
 				style_override = "similarity_thumb_negative";	
 
-			str += "<a href=\"#\" onclick=\"handle_select_datapoint(" + neighbor_idx + ")\"><img class=\"similarity_thumb " + style_override + "\" src=\"" + img_url + "\" width=\"100\" height=\"100\" /></a>"
+			str += "<a href=\"#\" onclick=\"handle_select_datapoint(" + neighbor_idx + ")\">";
+			str += "<img id=\"thumbnail_image_" + neighbor_idx + "\" class=\"similarity_thumb " + style_override + "\" " + img_events_str + " src=\"" + img_url + "\" width=\"100\" height=\"100\" /></a>";
 		}
 		str += "</div>";
 
@@ -584,7 +614,7 @@
 		} else {
 
         	if (datapoint_type == DATAPOINT_TYPE_IMAGE_URL_SEQ)
-	        	thumbnail_widget.detach();
+	        	preview_thumbnail_widget.detach();
 
 			var num_total = num_train + num_val;
 			var lf_matrix = display_ext_data ? lf_matrix_ext : lf_matrix_noext;
@@ -644,7 +674,7 @@
         	preview_div.innerHTML = str;
 
         	if (datapoint_type == DATAPOINT_TYPE_IMAGE_URL_SEQ)
-	        	thumbnail_widget.attach(document.getElementById("main_preview_image"), idx, datapoints[idx]);
+	        	preview_thumbnail_widget.attach(document.getElementById("main_preview_image"), idx, datapoints[idx], true);
 		}
 	}
 
@@ -794,6 +824,10 @@
 		lfviz.set_row_filter_mask(row_filter_mask);
 	}
 
+	// "part 1" is the select of the filter type.  Note that most filters also need the user to
+	// select value along with this type in order to fully specify a filter.  So this function
+	// only serves to modify the options in the filter options select box to be consistent with
+	// the filter chosen type.
 	function handle_filter_part1_change() {
 
 		var select_box = document.getElementById("select_lf");		
@@ -1051,6 +1085,7 @@
 		lfviz.set_row_filter_mask(row_filter_mask);
 	}
 
+	// toggles the visualizer between data from LF's that are not extended, and those that have been extended
 	function handle_toggle_show_extended() {
 
 		if (!has_extended_data)
@@ -1094,6 +1129,7 @@
 		return 0;
 	}
 	
+	// handle a user-specified change to the value used to sort the datapoints
 	function handle_sort_change() {
 
 		var sort_box = document.getElementById('sort_by_selection');
