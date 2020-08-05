@@ -39,6 +39,7 @@
 	.similarity_thumb {
 		border: 1px solid #808080;
 		margin: 1px;
+		border-bottom: 5px solid #808080;
 	}
 
 	.similarity_thumb_positive {
@@ -83,8 +84,8 @@
 	///////////////////////////////////////////////////////////
 
 	var INPUT_BASE_URL = 'lfviz_assets/'
-	//var DUMP_NAME = "backhand"
-	var DUMP_NAME = "dummy"
+	var DUMP_NAME = "backhand"
+	//var DUMP_NAME = "dummy"
 
 
 	var num_train = 0;
@@ -423,10 +424,11 @@
 
 			var neighbor_idx = dist_rankings[image_idx][i];
 			
+			var style_override = ""
 			if (ground_truth_labels[neighbor_idx] == 1)
 				style_override = "similarity_thumb_positive";
 			else if (ground_truth_labels[neighbor_idx] == -1)
-				style_override = "similarity_thumb_negative";			
+				style_override = "similarity_thumb_negative";	
 
 			str += "<a href=\"#\" onclick=\"handle_select_datapoint(" + neighbor_idx + ")\"><img class=\"similarity_thumb " + style_override + "\" src=\"" + datapoints[neighbor_idx] + "\" width=\"100\" height=\"100\" /></a>"
 		}
