@@ -32,6 +32,7 @@ class LFViz {
 
 		// color constants
 		this.color_main_canvas = '#e0e0e0';
+		this.color_filtered_row = '#d0d0d0';
 		this.color_lf_positive = '#67bf5c';
 		this.color_lf_negative = '#ed665d';
 		this.color_lf_abstain = '#a2a2a2';
@@ -154,6 +155,12 @@ class LFViz {
 						ctx.fillStyle = el_color;
 						ctx.fillRect(start_x, start_y, this.display_el_width, this.display_el_height);
 					}
+				} else {
+					var start_x = col * spaced_col_width;
+					var start_y = i*this.display_el_height;
+					var col_width = this.display_el_width * this.num_lf;
+					ctx.fillStyle = this.color_filtered_row;
+					ctx.fillRect(start_x, start_y, col_width, this.display_el_height);
 				}
 			}
 		}
