@@ -83,7 +83,9 @@
 	///////////////////////////////////////////////////////////
 
 	var INPUT_BASE_URL = 'lfviz_assets/'
-	var DUMP_NAME = "backhand"
+	//var DUMP_NAME = "backhand"
+	var DUMP_NAME = "dummy"
+
 
 	var num_train = 0;
 	var num_val = 0;
@@ -136,7 +138,7 @@
 		dataset_description = info.description;
 		lf_names = info.lf_names;
 
-		if (info.datatype == "string")
+		if (info.datatype == "text")
 			datapoint_type = LFViz.DATAPOINT_TYPE_TEXT;
 		else if (info.datatype == "image_url")
 			datapoint_type = LFViz.DATAPOINT_TYPE_IMAGE_URL;
