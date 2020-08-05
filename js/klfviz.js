@@ -7,10 +7,6 @@
 
 class LFViz {
 
-	static get DATAPOINT_TYPE_NONE() { return 0; }
-	static get DATAPOINT_TYPE_TEXT() { return 1; }
-	static get DATAPOINT_TYPE_IMAGE_URL() { return 2; }
-
 	constructor() {
 
 		this.main_canvas_el = null;
@@ -373,11 +369,9 @@ class LFViz {
 	}
 
 
-	init(main_canvas_el, preview_div_el, similarity_callback) {
+	init(main_canvas_el) {
 
 		this.main_canvas_el = main_canvas_el;
-		this.preview_div_el = preview_div_el;
-		this.similarity_callback = similarity_callback;
 
 		this.main_canvas_el.addEventListener("mousemove", this.handle_canvas_mousemove, false);
 		this.main_canvas_el.addEventListener("mouseover", this.handle_canvas_mouseover, false);

@@ -24,9 +24,9 @@ def float32_to_float64(x):
 
 class WeakDB:
 
+	DATAPOINT_TYPE_TEXT = "text"
 	DATAPOINT_TYPE_IMAGE_URL = "image_url"
 	DATAPOINT_TYPE_IMAGE_URL_SEQ = "image_url_seq"
-	DATAPOINT_TYPE_TEXT = "text"
 
 	CLOSEST_LIST_SIZE = 20
 	SAMPLE_LIST_SIZE =  50

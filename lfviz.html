@@ -64,7 +64,8 @@
 		}
 	}
 
-	// hacky enum
+	// FIXME(kayvonf): hacky enum.
+	// Need to figure out what is the right way to do this in Javascript
 	var LF_OUTPUT_NEGATIVE = -1;
 	var LF_OUTPUT_ABSTAIN = 0;
 	var LF_OUTPUT_POSITIVE = 1;
@@ -76,6 +77,11 @@
     var LF_OUTPUT_INCORRECT = 7;
     var LF_OUTPUT_UNKNOWN = 8;
 
+	var DATAPOINT_TYPE_NONE = 0;
+	var DATAPOINT_TYPE_TEXT = 1;
+	var DATAPOINT_TYPE_IMAGE_URL = 2;
+	var DATAPOINT_TYPE_IMAGE_URL_SEQ = 3;
+
 	var lfviz = new LFViz;
 
 	///////////////////////////////////////////////////////////
@@ -83,8 +89,8 @@
 	///////////////////////////////////////////////////////////
 
 	var INPUT_BASE_URL = 'lfviz_assets/'
-	//var DUMP_NAME = "backhand"
-	var DUMP_NAME = "dummy"
+	var DUMP_NAME = "backhand"
+	//var DUMP_NAME = "dummy"
 
 	var num_train = 0;
 	var num_val = 0;
@@ -96,15 +102,17 @@
 	// human-readable names for all the labeling functions
 	var lf_names;
 
-	// the source data: text strings (if text), or an image url
-	var datapoint_type = LFViz.DATAPOINT_TYPE_IMAGE;
+	// the source data type: text strings (if text), or an image url
+	var datapoint_type;
+
+	// information about each datapoint (used for previewing it)
 	var datapoints;
 	
-	// table of labeling function outputs (pre and post extension)
+	// table of labeling function outputs (pre and post LF extension)
 	var lf_matrix_noext;
 	var lf_matrix_ext;
 	
-	// label model output (pre and post extension)
+	// label model output (pre and post LF extension)
 	var prob_labels_noext;
 	var prob_labels_ext;
 
@@ -314,11 +322,13 @@
 		lf_names = info.lf_names;
 
 		if (info.datatype == "text")
-			datapoint_type = LFViz.DATAPOINT_TYPE_TEXT;
+			datapoint_type = DATAPOINT_TYPE_TEXT;
 		else if (info.datatype == "image_url")
-			datapoint_type = LFViz.DATAPOINT_TYPE_IMAGE_URL;
-		else 
-			datapoint_Type = LFViz.DATAPOINT_TYPE_NONE;
+			datapoint_type = DATAPOINT_TYPE_IMAGE_URL;
+		else if (info.datatype == "image_url_seq")
+			datapoint_type = DATAPOINT_TYPE_IMAGE_URL_SEQ;
+		else
+			datapoint_Type = DATAPOINT_TYPE_NONE;
 
 		has_similarity_data = info.has_similarity_data;
 		has_extended_data = info.has_extended_data;
@@ -332,6 +342,7 @@
   		ground_truth_labels = [];
  		datapoints = [];
 
+ 		// if no ground truth data, fill in all 0's ("unknown")
 		if (!info.has_ground_truth) {
 			var num_total = num_train + num_val;
 			for (var i=0; i<num_total; i++) {
@@ -356,7 +367,7 @@
 
 		// if the type of the data is an imagte, need to patch up the urls to make
 		// them relative to INPUT_BASE_URL
-		if (datapoint_type == LFViz.DATAPOINT_TYPE_IMAGE_URL) {
+		if (datapoint_type == DATAPOINT_TYPE_IMAGE_URL) {
 			var temp_datapoints = []
 			for (var i=0; i<num_total; i++)
 				temp_datapoints.push(INPUT_BASE_URL + datapoints[i]);
@@ -369,7 +380,7 @@
 		console.log("Data load complete: train size=" + num_train + ", val size=" + num_val + ", num LFs=" + num_lf);
 
 		// update the filter selection dropdown box to include options for the various labeling functions
-		setup_datapoint_filters();
+		setup_filters();
 
 		// update the DOM to display stats about the dataset 
 		var data_info_el = document.getElementById('data_info');  
@@ -494,10 +505,10 @@
 
 			var str = "<p>Datapoint: " + idx + " of " + num_total + "<p/>";
 
-			if (datapoint_type == LFViz.DATAPOINT_TYPE_TEXT) {
+			if (datapoint_type == DATAPOINT_TYPE_TEXT) {
 				str += "<p>" + datapoints[idx] + "</p>";
 
-			} else if (datapoint_type == LFViz.DATAPOINT_TYPE_IMAGE_URL) {
+			} else if (datapoint_type == DATAPOINT_TYPE_IMAGE_URL) {
 
 				var style_override = "";
 				if (ground_truth_labels.length	!= 0) {
@@ -539,12 +550,12 @@
             if (has_similarity_data)
 	            str += "<p><a href=\"#\" onclick=\"handle_view_similar(" + idx + ")\">View Similar Datapoints</p>"
 
-        	this.preview_div_el.innerHTML = str;
+        	preview_div.innerHTML = str;
 		}
 	}
 
     // HACK(kayvonf): This is a function that filters rows according to a predicate.
-    // It's meant to be throwaway code for now.
+    // It's meant to be throw away code for now.
     // it returns a boolean array that designates which rows should be retained
 	function compute_row_filter_mask(lf_function, criteria) {
 
@@ -657,7 +668,7 @@
 		}
 	}
 
-	function setup_datapoint_filters() {
+	function setup_filters() {
 
 		// these are the options for any individual labeling function 
 		var individual_lf_options = ["positive", "negative", "abstain", "votes", "votes+disagrees", "correct", "incorrect"];
@@ -1058,7 +1069,7 @@
 		
 		preview_div = document.getElementById('preview_div');
 
-		lfviz.init(main_canvas, preview_div);
+		lfviz.init(main_canvas);
 		load_data();
 	}
 
