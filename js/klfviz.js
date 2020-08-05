@@ -14,8 +14,9 @@ class LFViz {
 	constructor() {
 
 		this.main_canvas_el = null;
-		this.preview_main_el = null;
 		this.cached_canvas_image = null;
+
+		this.data_preview_func = null;
 
 		this.cursorx = Number.MIN_SAFE_INTEGER;
 		this.cursory = Number.MIN_SAFE_INTEGER;
@@ -24,8 +25,6 @@ class LFViz {
 		this.num_rows = 0;
 		this.num_lf = 0;
 		this.data_matrix = null;
-		this.datapoint_type = null;
-		this.datapoints = null;
 
 		// visualization
 		this.row_filter_mask = null;
@@ -215,7 +214,6 @@ class LFViz {
 	// To avoid flicker as the mouse moves around, we only redraw the preview window if the
 	// datapoint to put into the preview window is different from the datapoint already
 	// visualized there.  force_redraw=true overrides this
-
 	update_preview(force_redraw = false) {
 
 		var idx;
@@ -227,59 +225,12 @@ class LFViz {
 		if (idx >= 0) {
 
 			if (idx != this.preview_idx || force_redraw) {
-
-				var str = "<p>Datapoint: " + idx + " of " + this.num_rows + "<p/>";
-
-				if (this.datapoint_type == LFViz.DATAPOINT_TYPE_TEXT)
-					str += "<p>" + this.datapoints[idx] + "</p>";
-
-				else if (this.datapoint_type == LFViz.DATAPOINT_TYPE_IMAGE_URL) {
-
-					var style_override = "";
-					if (this.ground_truth_labels.length	!= 0) {
-						if (this.ground_truth_labels[idx] == 1)
-							style_override = "similarity_thumb_positive";
-						else if (ground_truth_labels[idx] == -1)
-							style_override = "similarity_thumb_negative";
-					}	
-
-					str += "<p><img class=\"similarity_thumb " + style_override + "\" src=\"" + this.datapoints[idx] + "\" width=\"" +
-                           this.preview_div_el.clientWidth + "\" height=\"" + this.preview_div_el.clientWidth + "\" /></p>";
-				}
-
-				str += "<p>";
-				if (this.ground_truth_labels.length != 0) {
-
-					var value_str = "";
-
-					if (this.ground_truth_labels[idx] == 1)
-						value_str = "true";
-					else if (this.ground_truth_labels[idx] == -1)
-						value_str = "false";
-					else 
-						value_str = "unknown";
-
-					str += "<div>Ground truth: " + value_str + "</div>";
-				}
-				str += "<div>LM score: "+ this.model_scores[idx].toPrecision(4) + "</div>"
-				str += "<div>LF votes: ";
-				var base = this.num_lf*idx;
-				for (var i=0;i<this.num_lf; i++) {
-					str += this.data_matrix[base + i];
-					if (i < this.num_lf-1)
-						str += ", "; 
-				}
-				str += "</div>";
-				str += "</p>";
-
-                // FIXME(kayvonf): terrible hack. Hardcoding this event handler for now
-                str += "<p><a href=\"#\" onclick=\"handle_view_similar(" + idx + ")\">View Similar Datapoints</p>"
-
-                this.preview_idx = idx;
-            	this.preview_div_el.innerHTML = str;
+				this.preview_idx = idx;
+				this.data_preview_func(idx);
 			}
+
     	} else {
-			this.preview_div_el.innerHTML = "";
+    		this.data_preview_func(-1);
 		}
 	}
 
@@ -287,14 +238,12 @@ class LFViz {
 	// Currently, this is treated a hard reset of the state of the visualizer.
 	// Updating the input data resets both the row filter mask and the row sorting
 	// See 'update_data()' instead for retaining all viz state and just swapping out data values
-	set_data(num_rows, num_lf, lf_matrix, model_scores, gt_labels=[], datapoint_type=LFViz.DATAPOINT_TYPE_NONE, datapoints=[]) {
+	set_data(num_rows, num_lf, lf_matrix, model_scores, data_preview_func) {
 		this.num_rows = num_rows;
 		this.num_lf = num_lf;
 		this.data_matrix = lf_matrix;
 		this.model_scores = model_scores;
-		this.ground_truth_labels = gt_labels;
-		this.datapoint_type = datapoint_type;
-		this.datapoints = datapoints;
+		this.data_preview_func = data_preview_func;
 
 		// reset the filter mask
 		this.row_filter_mask = [];
@@ -311,8 +260,7 @@ class LFViz {
 		// clear the selection
 		this.clear_selection();
 
-		console.log("KLFViz: loading data (num rows=" + this.num_rows + ", num lf=" + this.num_lf + ")" +
-		       	    " datapoint_type=" + this.datapoint_type);
+		console.log("KLFViz: loading data (num rows=" + this.num_rows + ", num lf=" + this.num_lf + ")");
 
 		this.render_cached_viz();
 		this.render();
