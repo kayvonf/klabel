@@ -80,6 +80,7 @@ db.set_ground_truth(ground_truth)
 db.set_datapoints(weakdb.WeakDB.DATAPOINT_TYPE_IMAGE_URL, datapoints)
 db.set_similarity_matrix(sim_matrix)
 
+# all the output json files will be saved to this directory
 target_dir = "lfviz_assets"
 db.save_json(target_dir)
 
