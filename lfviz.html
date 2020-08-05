@@ -209,6 +209,12 @@
 	// viz application state
 	///////////////////////////////////////////////////////////
 
+	// index of datapoint in preview pane
+	var cur_preview_idx;
+
+	// index of datapoint whose similarity results are shown
+	var cur_similarity_idx;
+
 	// data structure managing the state of the possible data_filters
 	var available_filters;
 
@@ -230,6 +236,9 @@
 	// handles thumbnail animation
 	var preview_thumbnail_widget = new ThumbnailWidget;
 	var small_thumbnail_widget = new ThumbnailWidget;
+
+	// hide any indication of ground truth data in the UI, even if it exists in the dataset
+	var hide_ground_truth = false;
 
 	// Entrypoint that initiates logic for loading data from the server via a sequence of async requests 
 	//
@@ -493,6 +502,8 @@
 			button.style.visibility = "visible";
 		}
 
+		cur_preview_idx = -1;
+		cur_similarity_idx = -1;
 
 		// communicate data to the viz widget
 		var lf_matrix = display_ext_data ? lf_matrix_ext : lf_matrix_noext;
@@ -569,43 +580,58 @@
 
 		var similarity_el = document.getElementById("similarity");
 
-		var num_thumbs = Math.min(250, similarity_rankings[image_idx].length);
+		cur_similarity_idx = image_idx;
 
-		var str = "<h3>Top " + num_thumbs + " most similar images to datapoint: " + image_idx + "</h3>"
+		if (cur_similarity_idx == -1) {
 
-		str += "<div>";
-		for (var i=0; i<num_thumbs; i++) {
+			similarity_el.innerHTML = "";
 
-			var neighbor_idx = similarity_rankings[image_idx][i];
-			
-			var img_url;
-			var img_events_str;
+		} else {
 
-			// FIXME(kayvonf): I currently hardcoded index for IMAGE_URL_SEQ case
-			if (datapoint_type == DATAPOINT_TYPE_IMAGE_URL) {
-				img_url = datapoints[neighbor_idx];
-				img_events_str = "";
-			} else {
-				img_url = datapoints[neighbor_idx][1];
-				img_events_str = "onmouseover=\"handle_thumbnail_mouseover(" + neighbor_idx + ")\" onmouseout=\"handle_thumbnail_mouseout(" + neighbor_idx + ")\"";
+			var num_thumbs = Math.min(250, similarity_rankings[image_idx].length);
+
+			var str = "<h3>Top " + num_thumbs + " most similar images to datapoint " + image_idx + "</h3>"
+
+			str += "<div>";
+			for (var i=0; i<num_thumbs; i++) {
+
+				var neighbor_idx = similarity_rankings[image_idx][i];
+				
+				var img_url;
+				var img_events_str;
+
+				// FIXME(kayvonf): I currently hardcoded index for IMAGE_URL_SEQ case
+				if (datapoint_type == DATAPOINT_TYPE_IMAGE_URL) {
+					img_url = datapoints[neighbor_idx];
+					img_events_str = "";
+				} else {
+					img_url = datapoints[neighbor_idx][1];
+					img_events_str = "onmouseover=\"handle_thumbnail_mouseover(" + neighbor_idx + ")\" onmouseout=\"handle_thumbnail_mouseout(" + neighbor_idx + ")\"";
+				}
+
+				var style_override = "";
+				if (!hide_ground_truth) {
+					if (ground_truth_labels[neighbor_idx] == 1)
+						style_override = "similarity_thumb_positive";
+					else if (ground_truth_labels[neighbor_idx] == -1)
+						style_override = "similarity_thumb_negative";
+				}	
+
+				str += "<a href=\"#\" onclick=\"handle_select_datapoint(" + neighbor_idx + ")\">";
+				str += "<img id=\"thumbnail_image_" + neighbor_idx + "\" class=\"similarity_thumb " + style_override + "\" " + img_events_str + " src=\"" + img_url + "\" width=\"100\" height=\"100\" /></a>";
 			}
 
-			var style_override = "";
-			if (ground_truth_labels[neighbor_idx] == 1)
-				style_override = "similarity_thumb_positive";
-			else if (ground_truth_labels[neighbor_idx] == -1)
-				style_override = "similarity_thumb_negative";	
+			str += "</div>";
+			similarity_el.innerHTML = str;
 
-			str += "<a href=\"#\" onclick=\"handle_select_datapoint(" + neighbor_idx + ")\">";
-			str += "<img id=\"thumbnail_image_" + neighbor_idx + "\" class=\"similarity_thumb " + style_override + "\" " + img_events_str + " src=\"" + img_url + "\" width=\"100\" height=\"100\" /></a>";
 		}
-		str += "</div>";
 
-		similarity_el.innerHTML = str;
 		return false;
 	}
 
 	function handle_data_preview(idx) {
+
+		cur_preview_idx = idx;
 
 		if (idx == -1) {
 
@@ -632,7 +658,7 @@
 				var img_url = (datapoint_type == DATAPOINT_TYPE_IMAGE_URL) ? datapoints[idx] : datapoints[idx][1];  
 
 				var style_override = "";
-				if (ground_truth_labels.length	!= 0) {
+				if (!hide_ground_truth) {
 					if (ground_truth_labels[idx] == 1)
 						style_override = "similarity_thumb_positive";
 					else if (ground_truth_labels[idx] == -1)
@@ -645,14 +671,18 @@
 
 			str += "<p>";
 
-			var value_str = "";
+			var value_str;
 
-			if (ground_truth_labels[idx] == 1)
-				value_str = "true";
-			else if (ground_truth_labels[idx] == -1)
-				value_str = "false";
-			else 
+			if (hide_ground_truth)
 				value_str = "unknown";
+			else {
+				if (ground_truth_labels[idx] == 1)
+					value_str = "true";
+				else if (ground_truth_labels[idx] == -1)
+					value_str = "false";
+				else 
+					value_str = "unknown";
+			}
 
 			str += "<div>Ground truth: " + value_str + "</div>";
 				
@@ -1119,6 +1149,23 @@
 		handle_sort_change();
 	}
 
+	function handle_toggle_hide_ground_truth() {
+
+		var button = document.getElementById("toggle_hide_ground_truth_button");
+		hide_ground_truth = !hide_ground_truth;
+
+		if (hide_ground_truth) {
+			button.innerHTML = "Show Ground Truth";
+		} else {
+			button.innerHTML = "Hide Ground Truth";
+		}
+
+		// redraw the preview and similarity thumbnail sections to reflect
+		// the new state of hide_ground_truth
+		handle_view_similar(cur_similarity_idx);
+		handle_data_preview(cur_preview_idx);
+	}
+
 	// sorting predicate
 	function sort_ascending_function(el1, el2) {
 
@@ -1213,12 +1260,12 @@
 </div>
 
 <p style="clear: both;">
-<div>
+<div style="padding-top: 5px;">
 	<span id="toggle_extended_text">Showing data without LF extension.</span>
 	<button id="toggle_extended_button" type="button" style="visibility: hidden;" onclick="handle_toggle_show_extended()">Show Extended Data</button>
 </div>
 
-<div>
+<div style="padding-top: 2px;">
 Sort rows by
 	<select id="sort_by_selection" onchange="handle_sort_change()">
        <option value="sort_by_none">Original data order</option>
@@ -1231,7 +1278,7 @@ Sort rows by
     </select>
 </div>
 
-<div>
+<div style="padding-top: 2px;">
 	Only show data points where 
 	<select id="select_lf"  style="width: 175px;" onchange="handle_filter_part1_change()">
     </select>
@@ -1240,6 +1287,11 @@ Sort rows by
     </select>
     .
 </div>
+
+<div style="padding-top: 2px;">
+More debugging options: <button id="toggle_hide_ground_truth_button" type="button" onclick="handle_toggle_hide_ground_truth()">Hide Ground Truth</button>
+</div>
+
 </p>
 
 <h3>Dataset Info</h3>
