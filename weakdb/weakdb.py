@@ -24,6 +24,7 @@ def float32_to_float64(x):
 
 class WeakDB:
 
+	DATAPOINT_TYPE_UNKNOWN = "unknown"
 	DATAPOINT_TYPE_TEXT = "text"
 	DATAPOINT_TYPE_IMAGE_URL = "image_url"
 	DATAPOINT_TYPE_IMAGE_URL_SEQ = "image_url_seq"
@@ -49,7 +50,7 @@ class WeakDB:
 		self.extended_prob_labels = []	    # label model output (after extension)
 
 		# description of the datapoints (for introspection during debugging)
-		self.datapoint_type = WeakDB.DATAPOINT_TYPE_IMAGE_URL
+		self.datapoint_type = WeakDB.DATAPOINT_TYPE_UNKNOWN
 		self.datapoints = []				# holds either a text string or an image URL (for preview in viz)
 
 		self.ground_truth_labels = []		# ground truth labels
@@ -73,11 +74,11 @@ class WeakDB:
 		self.lf_names = lf_names
 
 	def set_lf_matrix(self, lf_matrix):
-		assert len(lf_matrix) == (self.num_train + self.num_val) * self.num_lf;
+		assert len(lf_matrix) == (self.num_train + self.num_val) * self.num_lf
 		self.lf_matrix = lf_matrix
 
 	def set_extended_lf_matrix(self, extended_lf_matrix):
-		assert len(extended_lf_matrix) == (self.num_train + self.num_val) * self.num_lf;
+		assert len(extended_lf_matrix) == (self.num_train + self.num_val) * self.num_lf
 		self.extended_lf_matrix = extended_lf_matrix
 
 	def set_prob_labels(self, prob_labels):
@@ -274,13 +275,22 @@ class WeakDB:
 			self.ground_truth_labels.append(row[2*self.num_lf+2])
 
 		# now process the datapoint descriptors
+		self.datapoint_type = WeakDB.DATAPOINT_TYPE_IMAGE_URL_SEQ
 		self.datapoints = []
 		datapoints_train = pickle.load(open(self.get_linden_image_paths_pkl_filename(linden_src_dir, LINDEN_TRAINING_SET), "rb"))
 		datapoints_val = pickle.load(open(self.get_linden_image_paths_pkl_filename(linden_src_dir, LINDEN_VAL_SET), "rb"))
 		for row in datapoints_train:
-			self.datapoints.append("%s-1.jpg" % row[0:-4])
+			base_filename = row[0:-4]
+			urls = []
+			for i in range(3):
+				urls.append("%s-%d.jpg" % (base_filename, i))
+			self.datapoints.append(urls)
 		for row in datapoints_val:
-			self.datapoints.append("%s-1.jpg" % row[0:-4])
+			base_filename = row[0:-4]
+			urls = []
+			for i in range(3):
+				urls.append("%s-%d.jpg" % (base_filename, i))
+			self.datapoints.append(urls)
 
 		# process the distance matrices
 		self.sorted_dists = []
@@ -325,6 +335,7 @@ class WeakDB:
 			f.write(json.dumps(self.prob_labels))
 
 		assert len(self.datapoints) > 0
+		assert self.datapoint_type != WeakDB.DATAPOINT_TYPE_UNKNOWN
 		with open(self.get_datapoints_json_filename(target_dir), "wt") as f:
 			f.write(json.dumps(self.datapoints))
 

@@ -77,7 +77,7 @@
     var LF_OUTPUT_INCORRECT = 7;
     var LF_OUTPUT_UNKNOWN = 8;
 
-	var DATAPOINT_TYPE_NONE = 0;
+	var DATAPOINT_TYPE_UNKNOWN = 0;
 	var DATAPOINT_TYPE_TEXT = 1;
 	var DATAPOINT_TYPE_IMAGE_URL = 2;
 	var DATAPOINT_TYPE_IMAGE_URL_SEQ = 3;
@@ -328,7 +328,7 @@
 		else if (info.datatype == "image_url_seq")
 			datapoint_type = DATAPOINT_TYPE_IMAGE_URL_SEQ;
 		else
-			datapoint_Type = DATAPOINT_TYPE_NONE;
+			datapoint_type = DATAPOINT_TYPE_UNKNOWN;
 
 		has_similarity_data = info.has_similarity_data;
 		has_extended_data = info.has_extended_data;
@@ -365,13 +365,16 @@
 	function handle_data_load_complete() {
 		var num_total = num_train + num_val;
 
-		// if the type of the data is an imagte, need to patch up the urls to make
+		// if the type of the data is an image, need to patch up the urls to make
 		// them relative to INPUT_BASE_URL
 		if (datapoint_type == DATAPOINT_TYPE_IMAGE_URL) {
-			var temp_datapoints = []
 			for (var i=0; i<num_total; i++)
-				temp_datapoints.push(INPUT_BASE_URL + datapoints[i]);
-			datapoints = temp_datapoints;
+				datapoints[i] = INPUT_BASE_URL + datapoints[i];
+
+		} else if (datapoint_type == DATAPOINT_TYPE_IMAGE_URL_SEQ) {
+			for (var i=0; i<num_total; i++)
+				for (var j=0; j<datapoints[i].length; j++)
+					datapoints[i][j] = INPUT_BASE_URL + datapoints[i][j];
 		}
 
 		if (!check_data_sanity())
@@ -425,35 +428,39 @@
 		var check_passed = true;
 
 		if (lf_names.length != num_lf) {
-			console.log("Unexpected number of labeling function names. Expected " + num_lf + ", data has " + lf_names.length);
+			console.log("WARNING: Unexpected number of labeling function names. Expected " + num_lf + ", data has " + lf_names.length);
 			check_passed = false;
 
 		} else if (datapoints.length != num_total) {
-			console.log("Unexpected number of datapoint values. Expected " + num_total + ", data has " + datapoints.length);		
+			console.log("WARNING: Unexpected number of datapoint values. Expected " + num_total + ", data has " + datapoints.length);		
+			check_passed = false;
+
+		} else if (datapoint_type == DATAPOINT_TYPE_UNKNOWN) {
+			console.log("WARNING: Unknown datapoint type.");
 			check_passed = false;
 
 		} else if (ground_truth_labels.length != num_total) {
-			console.log("Unexpected number of ground truth labels. Expected " + num_total + ", data has " + ground_truth_labels.length);
+			console.log("WARNING: Unexpected number of ground truth labels. Expected " + num_total + ", data has " + ground_truth_labels.length);
 			check_passed = false;
 
 		} else if (lf_matrix_noext.length != num_total * num_lf) {
-			console.log("Unexpected number of lf matrix values (noext). Expected " + (num_total * num_lf) + ", data has " + lf_matrix_noext.length);		
+			console.log("WARNING: Unexpected number of lf matrix values (noext). Expected " + (num_total * num_lf) + ", data has " + lf_matrix_noext.length);		
 			check_passed = false;
 
 		} else if (has_extended_data && lf_matrix_ext.length != num_total * num_lf) {
-			console.log("Unexpected number of lf matrix values (ext). Expected " + (num_total * num_lf) + ", data has " + lf_matrix_ext.length);		
+			console.log("WARNING: Unexpected number of lf matrix values (ext). Expected " + (num_total * num_lf) + ", data has " + lf_matrix_ext.length);		
 			check_passed = false;
 		
 		} else if (has_extended_data && prob_labels_ext.length != num_total) {
-			console.log("Unexpected number of label model values (ext). Expected " + num_total + ", data has " + label_model_ext.length);		
+			console.log("WARNING: Unexpected number of label model values (ext). Expected " + num_total + ", data has " + label_model_ext.length);		
 			check_passed = false;
 		
 		} else if (prob_labels_noext.length != num_total) {
-			console.log("Unexpected number of label model values (noext). Expected " + num_total + ", data has " + label_model_noext.length);		
+			console.log("WARNING: Unexpected number of label model values (noext). Expected " + num_total + ", data has " + label_model_noext.length);		
 			check_passed = false;
 		
 		} else if (has_similarity_data && similarity_rankings.length != num_total) {
-			console.log("Unexpected number of ranking lists. Expected " + num_total + ", data has " + similarity_rankings.length);		
+			console.log("WARNING: Unexpected number of ranking lists. Expected " + num_total + ", data has " + similarity_rankings.length);		
 			check_passed = false;	
 		}
 
@@ -477,13 +484,16 @@
 
 			var neighbor_idx = similarity_rankings[image_idx][i];
 			
+			// FIXME(kayvonf): I currently hardcoded index for IMAGE_URL_SEQ case
+			var img_url = (datapoint_type == DATAPOINT_TYPE_IMAGE_URL) ? datapoints[neighbor_idx] : datapoints[neighbor_idx][1]; 
+
 			var style_override = ""
 			if (ground_truth_labels[neighbor_idx] == 1)
 				style_override = "similarity_thumb_positive";
 			else if (ground_truth_labels[neighbor_idx] == -1)
 				style_override = "similarity_thumb_negative";	
 
-			str += "<a href=\"#\" onclick=\"handle_select_datapoint(" + neighbor_idx + ")\"><img class=\"similarity_thumb " + style_override + "\" src=\"" + datapoints[neighbor_idx] + "\" width=\"100\" height=\"100\" /></a>"
+			str += "<a href=\"#\" onclick=\"handle_select_datapoint(" + neighbor_idx + ")\"><img class=\"similarity_thumb " + style_override + "\" src=\"" + img_url + "\" width=\"100\" height=\"100\" /></a>"
 		}
 		str += "</div>";
 
@@ -508,7 +518,10 @@
 			if (datapoint_type == DATAPOINT_TYPE_TEXT) {
 				str += "<p>" + datapoints[idx] + "</p>";
 
-			} else if (datapoint_type == DATAPOINT_TYPE_IMAGE_URL) {
+			} else if (datapoint_type == DATAPOINT_TYPE_IMAGE_URL || datapoint_type == DATAPOINT_TYPE_IMAGE_URL_SEQ) {
+
+				// FIXME(kayvonf): I currently hardcoded index for IMAGE_URL_SEQ case
+				var img_url = (datapoint_type == DATAPOINT_TYPE_IMAGE_URL) ? datapoints[idx] : datapoints[idx][1];  
 
 				var style_override = "";
 				if (ground_truth_labels.length	!= 0) {
@@ -518,7 +531,7 @@
 						style_override = "similarity_thumb_negative";
 				}	
 
-				str += "<p><img class=\"similarity_thumb " + style_override + "\" src=\"" + datapoints[idx] + "\" width=\"" +
+				str += "<p><img class=\"similarity_thumb " + style_override + "\" src=\"" + img_url + "\" width=\"" +
                     	preview_div.clientWidth + "\" height=\"" + preview_div.clientWidth + "\" /></p>";
 			}
 
