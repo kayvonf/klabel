@@ -7,7 +7,7 @@ For help with generating assets for use in lfviz, see the example in [weakdb/dum
 
 ## Getting started with LFViz.
 
-1. Create the directory `lfviz_config/` in the directory containing `lfviz.html`. This is where `lfviz.html` looks for configuration files specified via the url parameters.
+1. Create the directory `lfviz_config/` in the directory containing `lfviz.html`. This is where `lfviz.html` looks for configuration files specified url parameters (see step 4).
 2. Create a WeakDB data dump with name `<DUMPNAME>`, placing the files anywhere in your web tree.  Let's call that directory `<DUMPDIR>`, so the main info file of the dump is `<DUMPDIR>/<DUMPNAME>.json`
    * See the example in [weakdb/dummy.py](weakdb/dummy.py) to learn how to create a data dump.
 3. Create a lfviz configuration file `<MYCONFIG>.json` that points to your data dump.
