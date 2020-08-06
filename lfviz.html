@@ -65,6 +65,22 @@
 		border-bottom: 5px solid #ed665d;
 	}
 
+	.text_main_preview {
+		width: 250px;
+		height: 200px;
+		border: 1px solid #c0c0c0;
+		background-color:#e0e0e0;
+		padding: 4px;
+		overflow: scroll;
+	}
+
+	.text_similarity_preview {
+		border: 1px solid #c0c0c0;
+		background-color:#e0e0e0;
+		padding: 4px;
+		margin-top: 10px;
+	}
+
 </style>
 
 <script src="js/kmath.js"></script>
@@ -608,7 +624,37 @@
 		small_thumbnail_widget.detach();
 	}
 
-	function handle_view_similar(image_idx) {
+	function handle_view_similar(idx) {
+		if (datapoint_type == DATAPOINT_TYPE_TEXT)
+			handle_view_similar_text(idx);
+		else
+			handle_view_similar_images(idx);
+	}
+
+	function handle_view_similar_text(idx) {
+
+		var similarity_el = document.getElementById("similarity");
+
+		var num_thumbs = Math.min(100, similarity_rankings[idx].length);
+
+		cur_similarity_idx = idx;
+		var str = "<h3>Top " + num_thumbs + " most similar items to datapoint " + idx + "</h3>";
+		str += "<div>";
+		for (var i=0; i<num_thumbs; i++) {
+			var neighbor_idx = similarity_rankings[idx][i];
+			str += "<div class=\"text_similarity_preview\">";
+			str += "<div>";
+			str += datapoints[neighbor_idx];
+			str += "</div>";
+			str += "<button onclick=\"handle_select_datapoint(" + neighbor_idx + ")\">Select</button>";
+			str += "</div>"
+		}
+
+		str += "</div>";
+		similarity_el.innerHTML = str;
+	}
+
+	function handle_view_similar_images(image_idx) {
 
 		var similarity_el = document.getElementById("similarity");
 
@@ -622,7 +668,7 @@
 
 			var num_thumbs = Math.min(250, similarity_rankings[image_idx].length);
 
-			var str = "<h3>Top " + num_thumbs + " most similar images to datapoint " + image_idx + "</h3>"
+			var str = "<h3>Top " + num_thumbs + " most similar images to datapoint " + image_idx + "</h3>";
 
 			str += "<div>";
 			for (var i=0; i<num_thumbs; i++) {
@@ -683,7 +729,7 @@
 
 			if (datapoint_type == DATAPOINT_TYPE_TEXT) {
 
-				str += "<p>" + datapoints[idx] + "</p>";
+				str += "<p><div class=\"text_main_preview\">" + datapoints[idx] + "</div></p>";
 
 			} else if (datapoint_type == DATAPOINT_TYPE_IMAGE_URL || datapoint_type == DATAPOINT_TYPE_IMAGE_URL_SEQ) {
 
@@ -1288,7 +1334,7 @@
 <body onload="handle_onload()">
 
 <div>
-	<canvas id="main_canvas" width="940" height="550" style="border: 1px solid #c0c0c0; display: block; float: left;" ></canvas>
+	<canvas id="main_canvas" width="1000" height="650" style="border: 1px solid #c0c0c0; display: block; float: left;" ></canvas>
 	<div id="preview_div" style="padding-left: 5px; width: 256px; height: 500px; float: left;">&nbsp;</div>
 </div>
 
