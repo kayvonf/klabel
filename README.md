@@ -13,4 +13,4 @@ For help with generating assets for use in lfviz, see the example in [weakdb/dum
 3. Create a lfviz configuration file `<MYCONFIG>.json` that points to your data dump.
    * Set parameter value `dump_url` to the url of the data dump info file (e.g., `"dump_url" : "<DUMPDIR>/<DUMPNAME>.json"`). 
    * See the example configuration file in [config_examples/lfviz_config.json](config_examples/lfviz_config.json).
-4. Open `lfviz.html` in a browser, and set query string parameter `lfviz.html?config=<MYCONFIG>` to load your WeakDB data dump using lfviz.
+4. Open `lfviz.html` in a browser. Set the query string parameter `lfviz.html?config=<MYCONFIG>` to load your WeakDB data dump using lfviz.
