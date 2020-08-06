@@ -27,6 +27,22 @@
 		color: #000000;
 	}
 
+
+	button {
+	  background-color: #a2a2a2; 
+	  border: none;
+	  color: white;
+	  padding: 2px 6px;
+	  border-radius: 3px;
+ 	  /*font-family: Open sans, Arial, sans-serif; */
+	  text-align: center;
+	  display: inline-block;
+	}
+
+	button:hover {
+		background-color: #808080;
+	}
+
 	.bold_text {
 		font-weight: bold;
 	}
@@ -48,7 +64,6 @@
 	.similarity_thumb_negative {
 		border-bottom: 5px solid #ed665d;
 	}
-
 
 </style>
 
@@ -573,6 +588,15 @@
 
 	function handle_select_datapoint(datapoint_idx) {
 		lfviz.set_selection(datapoint_idx);
+	}
+
+	function handle_select_datapoint_from_box() {
+		var input_el = document.getElementById("select_input_box");
+		var value = parseInt(input_el.value);
+		if (!isNaN(value))
+			lfviz.set_selection(value);
+		else
+			input_el.value = '';
 	}
 
 	function handle_thumbnail_mouseover(datapoint_idx) {
@@ -1268,14 +1292,19 @@
 	<div id="preview_div" style="padding-left: 5px; width: 256px; height: 500px; float: left;">&nbsp;</div>
 </div>
 
-<p style="clear: both;">
-<div style="padding-top: 5px;">
-	<span id="toggle_extended_text">Showing data without LF extension.</span>
-	<button id="toggle_extended_button" type="button" style="visibility: hidden;" onclick="handle_toggle_show_extended()">Show Extended Data</button>
-</div>
-
-<div style="padding-top: 2px;">
-Sort rows by
+<p style="clear: both; padding-top: 1px;">
+<table cellpadding="0" cellspacing="2">
+<tr>
+	<td width="75"><span class="bold_text">Data:</span></td>
+	<td>
+		<span id="toggle_extended_text">Showing data without LF extension.</span>
+		<button id="toggle_extended_button" type="button" style="visibility: hidden;" onclick="handle_toggle_show_extended()">Show Extended Data</button>
+	</td>
+</tr>
+<tr>
+	<td><span class="bold_text">Sorting:</span></td>
+	<td>
+	Sort rows by
 	<select id="sort_by_selection" onchange="handle_sort_change()">
        <option value="sort_by_none">Original data order</option>
        <option value="sort_by_label_model">Label model score</option>
@@ -1284,23 +1313,33 @@ Sort rows by
        <option value="sort_by_num_positive">Num positive votes</option>
        <option value="sort_by_num_negative">Num negative votes</option>
        <option value="sort_by_num_vote">Num votes</option>
-    </select>
-</div>
-
-<div style="padding-top: 2px;">
-	Only show data points where 
+    </select>		
+	</td>
+</tr>
+<tr>
+	<td><span class="bold_text">Filtering:</span></td>
+	<td>
+Only show data points where 
 	<select id="select_lf"  style="width: 175px;" onchange="handle_filter_part1_change()">
     </select>
     is
     <select id="select_lf_status" style="width: 175px;" onchange="handle_filter_change()">
     </select>
-    .
-</div>
-
-<div style="padding-top: 2px;">
-More debugging options: <button id="toggle_hide_ground_truth_button" type="button" onclick="handle_toggle_hide_ground_truth()">Hide Ground Truth</button>
-</div>
-
+    .		
+	</td>	
+</tr>
+<tr>
+	<td>
+		<span class="bold_text">Misc:</span>
+	</td>
+	<td>
+	Select datapoint:
+	<input type="text" id="select_input_box" style="width: 50px" onchange="handle_select_datapoint_from_box()"" onfocus="this.value=''" "/> 
+	<button id="select_input_box" type="button" onclick="handle_select_datapoint_from_box()">Go</button> | 
+	<button id="toggle_hide_ground_truth_button" type="button" onclick="handle_toggle_hide_ground_truth()">Hide Ground Truth</button>
+	</td>
+</tr>
+</table>
 </p>
 
 <h3>Dataset Info</h3>
@@ -1315,7 +1354,7 @@ More debugging options: <button id="toggle_hide_ground_truth_button" type="butto
 	<div>Hover over a row to see the corresponding data point.</div>
 	<div>Click on a row to select the corresponding data point.  Click the selected row a second time (or click on a non-row area of the viz) to remove the selection and return to hover behavior.</div>
 	<div>When a data point is selected, click on "view similar datapoints" to view its nearest neighbors in the training set.</div>
-	<div>Clicking on any nearest neighbor will select it in the visualizer.</div> 
+	<div>Clicking on any nearest neighbor thumbnail will select it in the visualizer.</div> 
 </p>
 
 <p>
