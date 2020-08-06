@@ -287,7 +287,6 @@ class LFViz {
 	}
 
 	set_selection(idx) {
-		console.log("Setting selection to " + idx);
 		this.cur_selection_idx = idx; 
 
 		if (this.has_selection()) {
@@ -298,10 +297,10 @@ class LFViz {
 
 		if (this.has_selection() && this.row_filter_mask[this.cur_selection_idx] == false) {
 			this.clear_selection();
-			console.log("Not selecting datapoint " + idx + " since it's currently filtered.")
+			var error_str = "Not selecting datapoint " + idx + " since it's currently filtered. Remove filter before selecting."; 
+			console.log(error_str);
+			alert(error_str);
 		}
-
-		console.log("viz index = " + this.cur_selection_viz_idx);
 
 		this.render();
 		this.update_preview();
