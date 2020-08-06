@@ -11,6 +11,6 @@ For help with generating assets for use in lfviz, see the example in [weakdb/dum
 2. Create a WeakDB data dump with name `<DUMPNAME>`, placing the files anywhere in your web tree.  Let's call that directory `<DUMPDIR>`, so the main info file of the dump is `<DUMPDIR>/<DUMPNAME>.json`
    * See the example in [weakdb/dummy.py](weakdb/dummy.py) to learn how to create a data dump.
 3. Create a lfviz configuration file `<MYCONFIG>.json` that points to your data dump.
-   * Set parameter value `dump_url` to the url of the data dump info file (e.g., `"dump_url" : "<DUMPDIR>/<DUMPNAME>.json"`.) 
+   * Set parameter value `dump_url` to the url of the data dump info file (e.g., `"dump_url" : "<DUMPDIR>/<DUMPNAME>.json"`). 
    * See the example configuration file in [config_examples/lfviz_config.json](config_examples/lfviz_config.json).
 4. Open `lfviz.html` in a browser, and set query string parameter `lfviz.html?config=<MYCONFIG>` to load your WeakDB data dump using lfviz.
