@@ -1,9 +1,0 @@
-{ 
-  "dumpname" : "backhand",
-  "basedir" : "",
-  "viz_grid_width"      : 940,
-  "viz_grid_height"     : 550,
-  "viz_grid_box_width"  : 7,
-  "viz_grid_box_height" : 7
-}
-
