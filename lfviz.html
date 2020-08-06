@@ -96,6 +96,14 @@
 		return prefix + part2;
 	}
 
+	function get_url_dir(dump_url) {
+		var idx = dump_url.lastIndexOf('/');
+		if (idx == -1)
+			return "";
+		else
+			return dump_url.substr(0, idx+1);
+	}
+
 	class ThumbnailWidget {
 
 		constructor() {
@@ -211,7 +219,7 @@
 	var DATAPOINT_TYPE_IMAGE_URL = 2;
 	var DATAPOINT_TYPE_IMAGE_URL_SEQ = 3;
 
-	var INPUT_BASE_URL = 'lfviz_assets';
+	var LFVIZ_CONFIG_FILE_DIR = 'lfviz_config';
 
 	var lfviz = new LFViz;
 
@@ -297,11 +305,9 @@
 	// (via Javascript's Fetch API) to get all the associated data files.  
 	//
 	// See handle_data_load_complete() for the logic that occurs when all data has loaded. 
-	function load_data() {
+	function load_data(dump_url) {
 
-		var dump_info_url = join_path(dump_base_dir, dump_name + '.json');
-
- 		fetch(dump_info_url)
+ 		fetch(dump_url)
  			.then(function(response) {
  				if (response.status !== 200) {
  					console.log("problem: " + response.status);
@@ -458,6 +464,8 @@
 
 	// called when the dataset info file has been downloaded
 	function handle_info_file_loaded(info) {
+
+		dump_name = info.name;
 
 		num_lf = info.num_lf;
 		num_train = info.num_train;
@@ -1347,7 +1355,7 @@
     		config_filename = url_params.get("config") + ".json";
   		}
 
-  		var config_url = INPUT_BASE_URL + "/" + config_filename;
+  		var config_url = LFVIZ_CONFIG_FILE_DIR + "/" + config_filename;
 
 		loading_div.innerHTML = "Loading WeakDB config: " + config_filename;
 
@@ -1365,14 +1373,12 @@
 				// parse the config file to get the dataset to load, as well as configuration
 				// parameters for the lfviz widget
 
-				dump_name = config_data.dumpname;
+				dump_url = config_data.dump_url;
 
   				// dump_base_dir: this is the directory where all the dump files will be
 
-				dump_base_dir = INPUT_BASE_URL;
-				if (config_data.basedir != "") {
-					dump_base_dir = join_path(dump_base_dir, config_data.basedir);
-				}
+				dump_base_dir = get_url_dir(dump_url);
+				console.log('Base dir: ' + dump_base_dir);
 
 				// initialize lfviz widget
 
@@ -1387,7 +1393,7 @@
 				
 				// kick off data loading
 
-				load_data();
+				load_data(dump_url);
 
 			})
  			.catch(function(err) {

@@ -1,6 +1,5 @@
 { 
-  "dumpname" : "backhand",
-  "basedir" : "",
+  "dump_url" : "lfviz_assets/backhand.json",
   "viz_grid_width"      : 940,
   "viz_grid_height"     : 550,
   "viz_grid_box_width"  : 7,
