@@ -194,8 +194,12 @@
 	///////////////////////////////////////////////////////////
 
 	var INPUT_BASE_URL = 'lfviz_assets/'
-	var DUMP_NAME = "backhand"
-	//var DUMP_NAME = "dummy"
+	// Set dump name from query string
+	const urlParams = new URLSearchParams(window.location.search);
+	var DUMP_NAME = "backhand";
+  if (urlParams.has("dumpname")) {
+    DUMP_NAME = urlParams.get("dumpname");
+  }
 
 	var num_train = 0;
 	var num_val = 0;
