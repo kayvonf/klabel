@@ -88,6 +88,14 @@
 
 <script>
 
+	function join_path(part1, part2) {
+		var prefix = part1;
+		if (prefix.charAt(prefix.length-1))
+			prefix = prefix + "/";
+
+		return prefix + part2;
+	}
+
 	class ThumbnailWidget {
 
 		constructor() {
@@ -203,19 +211,16 @@
 	var DATAPOINT_TYPE_IMAGE_URL = 2;
 	var DATAPOINT_TYPE_IMAGE_URL_SEQ = 3;
 
+	var INPUT_BASE_URL = 'lfviz_assets';
+
 	var lfviz = new LFViz;
 
 	///////////////////////////////////////////////////////////
 	// input data (from the debug dump) 
 	///////////////////////////////////////////////////////////
 
-	var INPUT_BASE_URL = 'lfviz_assets/'
-	// Set dump name from query string
-	const urlParams = new URLSearchParams(window.location.search);
-	var DUMP_NAME = "backhand";
-  if (urlParams.has("dumpname")) {
-    DUMP_NAME = urlParams.get("dumpname");
-  }
+	var dump_name;
+	var dump_base_dir;
 
 	var num_train = 0;
 	var num_val = 0;
@@ -273,8 +278,10 @@
 	// state of the async loads
 	var pending_data_load_events;
 
-	// DOM element where to render datapoint previews
-	var preview_div;
+	// key DOM elements 
+	var loading_div;    // where to render datapoint previews
+	var main_viz_div;   // main div for all the UI elements
+	var preview_div;    // div containing the main preview
 
 	// handles thumbnail animation
 	var preview_thumbnail_widget = new ThumbnailWidget;
@@ -292,7 +299,7 @@
 	// See handle_data_load_complete() for the logic that occurs when all data has loaded. 
 	function load_data() {
 
-		var dump_info_url = INPUT_BASE_URL + DUMP_NAME + '.json';
+		var dump_info_url = join_path(dump_base_dir, dump_name + '.json');
 
  		fetch(dump_info_url)
  			.then(function(response) {
@@ -323,7 +330,7 @@
 				}
 
 				// now kick off all the individual data file loads
-				var prefix = INPUT_BASE_URL + DUMP_NAME;
+				var prefix = join_path(dump_base_dir, dump_name);
 				var lf_matrix_noext_url = prefix + '_lfmatrix_noext.json';
 				var prob_labels_noext_url = prefix + '_prob_labels_noext.json';
 				var lf_matrix_ext_url = prefix + '_lfmatrix_ext.json';
@@ -503,15 +510,15 @@
 		var num_total = num_train + num_val;
 
 		// if the type of the data is an image, need to patch up the urls to make
-		// them relative to INPUT_BASE_URL
+		// them relative to dump_base_dir
 		if (datapoint_type == DATAPOINT_TYPE_IMAGE_URL) {
 			for (var i=0; i<num_total; i++)
-				datapoints[i] = INPUT_BASE_URL + datapoints[i];
+				datapoints[i] = join_path(dump_base_dir, datapoints[i]);
 
 		} else if (datapoint_type == DATAPOINT_TYPE_IMAGE_URL_SEQ) {
 			for (var i=0; i<num_total; i++)
 				for (var j=0; j<datapoints[i].length; j++)
-					datapoints[i][j] = INPUT_BASE_URL + datapoints[i][j];
+					datapoints[i][j] = join_path(dump_base_dir, datapoints[i][j]);
 		}
 
 		if (!check_data_sanity())
@@ -547,6 +554,9 @@
 
 		cur_preview_idx = -1;
 		cur_similarity_idx = -1;
+
+		loading_div.style.visibility = 'hidden';
+		main_viz_div.style.visibility = 'visible';
 
 		// communicate data to the viz widget
 		var lf_matrix = display_ext_data ? lf_matrix_ext : lf_matrix_noext;
@@ -1324,12 +1334,65 @@
 
 	function handle_onload() {
 
-		var main_canvas = document.getElementById('main_canvas');
-		
 		preview_div = document.getElementById('preview_div');
+		loading_div = document.getElementById('loading_div');
+		main_viz_div = document.getElementById('main_viz_div')
 
-		lfviz.init(main_canvas);
-		load_data();
+		// generate a lfviz config file url
+
+		var config_filename = "lfviz_config.json";
+  		
+		const url_params = new URLSearchParams(window.location.search);
+		if (url_params.has("config")) {
+    		config_filename = url_params.get("config") + ".json";
+  		}
+
+  		var config_url = INPUT_BASE_URL + "/" + config_filename;
+
+		loading_div.innerHTML = "Loading WeakDB config: " + config_filename;
+
+		// kick off the config file load
+
+		fetch(config_url)
+ 			.then(function(response) {
+ 				if (response.status !== 200) {
+ 					console.log("problem: " + response.status);
+ 				}
+ 				return response.json();
+			})
+			.then(function(config_data) {
+
+				// parse the config file to get the dataset to load, as well as configuration
+				// parameters for the lfviz widget
+
+				dump_name = config_data.dumpname;
+
+  				// dump_base_dir: this is the directory where all the dump files will be
+
+				dump_base_dir = INPUT_BASE_URL;
+				if (config_data.basedir != "") {
+					dump_base_dir = join_path(dump_base_dir, config_data.basedir);
+				}
+
+				// initialize lfviz widget
+
+				var main_canvas = document.getElementById('main_canvas');
+
+				lfviz.init(
+					main_canvas,
+					config_data.viz_grid_width,
+					config_data.viz_grid_height,
+					config_data.viz_grid_box_width,
+					config_data.viz_grid_box_height);
+				
+				// kick off data loading
+
+				load_data();
+
+			})
+ 			.catch(function(err) {
+ 				console.log('Error fetching config file: ', err);
+ 			});	
 	}
 
 </script>
@@ -1337,10 +1400,12 @@
 
 <body onload="handle_onload()">
 
-<div>
-	<canvas id="main_canvas" width="940" height="550" style="border: 1px solid #c0c0c0; display: block; float: left;" ></canvas>
-	<div id="preview_div" style="padding-left: 5px; width: 256px; height: 550px; float: left;">&nbsp;</div>
+<div id="loading_div">
 </div>
+<div id="main_viz_div" style="visibility: hidden;">
+
+<canvas id="main_canvas" width="940" height="550" style="border: 1px solid #c0c0c0; display: block; float: left;" ></canvas>
+<div id="preview_div" style="padding-left: 5px; width: 256px; height: 550px; float: left;">&nbsp;</div>
 
 <p style="clear: both; padding-top: 1px;">
 <table cellpadding="0" cellspacing="2">
@@ -1412,6 +1477,7 @@ Only show data points where
 <div>Red - positive vote</div>
 <div>Gray - abstain</div>
 </p>
+</div> 
 
 </body>
 </html>

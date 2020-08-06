@@ -39,6 +39,7 @@ class LFViz {
 		this.color_highlight_box_outline = 'rgba(0.0, 0.0, 0.0, 1.0)';
 
 		// layout parameters
+		this.display_highlight_line_width = 2;
 		this.display_el_width = 7;
 		this.display_el_height = 7;
 		this.display_col_sep = this.display_el_width;
@@ -200,7 +201,7 @@ class LFViz {
 
 			var spaced_col_width = this.display_el_width*this.num_lf + this.display_col_sep;
 
-			ctx.lineWidth = 2;
+			ctx.lineWidth = this.display_highlight_line_width;
 			ctx.strokeStyle = this.color_highlight_box_outline;
 
 			for (var i=0; i<this.num_lf; i++) {
@@ -376,10 +377,18 @@ class LFViz {
 		this.update_preview();
 	}
 
-
-	init(main_canvas_el) {
+	init(main_canvas_el, canvas_width, canvas_height, box_width, box_height) {
 
 		this.main_canvas_el = main_canvas_el;
+
+		this.main_canvas_el.width = canvas_width;
+		this.main_canvas_el.height = canvas_height;
+		this.display_el_width = box_width;
+		this.display_el_height = box_height;
+
+		// for small LF boxes, want a thinner highlight so it is possible to still see the boxes.
+		if (this.display_el_width < 6 || this.display_el_height < 6)
+			this.display_highlight_line_width = 1;
 
 		this.main_canvas_el.addEventListener("mousemove", this.handle_canvas_mousemove, false);
 		this.main_canvas_el.addEventListener("mouseover", this.handle_canvas_mouseover, false);
