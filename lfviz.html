@@ -46,38 +46,38 @@
 		font-weight: bold;
 	}
 
-	.red_highlight {
-		color: #ff0000;
-	}
-
-	.similarity_thumb {
+	.image_thumb {
 		border: 1px solid #808080;
 		margin: 1px;
-		border-bottom: 5px solid #808080;
-	}
-
-	.similarity_thumb_positive {
-		border-bottom: 5px solid #67bf5c;
-	}
-
-	.similarity_thumb_negative {
-		border-bottom: 5px solid #ed665d;
 	}
 
 	.text_main_preview {
 		width: 250px;
 		height: 200px;
-		border: 1px solid #c0c0c0;
+		border: 1px solid #808080;
+		border-bottom: 5px solid #808080;
 		background-color:#e0e0e0;
 		padding: 4px;
 		overflow: scroll;
 	}
 
 	.text_similarity_preview {
-		border: 1px solid #c0c0c0;
+		border: 1px solid #808080;
 		background-color:#e0e0e0;
 		padding: 4px;
 		margin-top: 10px;
+	}
+
+	.datapoint_positive {
+		border-bottom: 5px solid #67bf5c;
+	}
+
+	.datapoint_negative {
+		border-bottom: 5px solid #ed665d;
+	}
+
+	.datapoint_unknown {
+		border-bottom: 5px solid #808080;
 	}
 
 </style>
@@ -580,7 +580,16 @@
 		var str = "<div>";
 		for (var i=0; i<num_items; i++) {
 			var neighbor_idx = items[i];
-			str += "<div class=\"text_similarity_preview\">";
+
+			var style_override = "";
+			if (!hide_ground_truth) {
+				if (ground_truth_labels[neighbor_idx] == 1)
+					style_override = "datapoint_positive";
+				else if (ground_truth_labels[neighbor_idx] == -1)
+					style_override = "datapoint_negative";
+			}	
+
+			str += "<div class=\"text_similarity_preview " + style_override + "\">";
 			str += "<div>";
 			str += datapoints[neighbor_idx];
 			str += "</div>";
@@ -612,16 +621,16 @@
 				img_events_str = "onmouseover=\"handle_thumbnail_mouseover(" + neighbor_idx + ")\" onmouseout=\"handle_thumbnail_mouseout(" + neighbor_idx + ")\"";
 			}
 
-			var style_override = "";
+			var style_override = "datapoint_unknown";
 			if (!hide_ground_truth) {
 				if (ground_truth_labels[neighbor_idx] == 1)
-					style_override = "similarity_thumb_positive";
+					style_override = "datapoint_positive";
 				else if (ground_truth_labels[neighbor_idx] == -1)
-					style_override = "similarity_thumb_negative";
+					style_override = "datapoint_negative";
 			}	
 
 			str += "<a href=\"#\" onclick=\"handle_select_datapoint(" + neighbor_idx + ")\">";
-			str += "<img id=\"thumbnail_image_" + neighbor_idx + "\" class=\"similarity_thumb " + style_override + "\" " + img_events_str + " src=\"" + img_url + "\" width=\"100\" height=\"100\" /></a>";
+			str += "<img id=\"thumbnail_image_" + neighbor_idx + "\" class=\"image_thumb " + style_override + "\" " + img_events_str + " src=\"" + img_url + "\" width=\"100\" height=\"100\" /></a>";
 		}
 		str += "</div>";
 	
@@ -701,26 +710,27 @@
 			var lf_matrix = display_ext_data ? lf_matrix_ext : lf_matrix_noext;
 			var prob_labels = display_ext_data ? prob_labels_ext : prob_labels_noext;
 
+			var style_override = "datapoint_unknown";
+			if (!hide_ground_truth) {
+				if (ground_truth_labels[idx] == 1)
+					style_override = "datapoint_positive";
+				else if (ground_truth_labels[idx] == -1)
+					style_override = "datapoint_negative";
+			}	
+
 			var str = "<p>Datapoint: " + idx + " of " + num_total + "<p/>";
 
 			if (datapoint_type == DATAPOINT_TYPE_TEXT) {
 
-				str += "<p><div class=\"text_main_preview\">" + datapoints[idx] + "</div></p>";
+
+				str += "<p><div class=\"text_main_preview " + style_override + "\">" + datapoints[idx] + "</div></p>";
 
 			} else if (datapoint_type == DATAPOINT_TYPE_IMAGE_URL || datapoint_type == DATAPOINT_TYPE_IMAGE_URL_SEQ) {
 
 				// FIXME(kayvonf): I currently hardcoded index for IMAGE_URL_SEQ case
 				var img_url = (datapoint_type == DATAPOINT_TYPE_IMAGE_URL_SEQ) ? datapoints[idx][1] : datapoints[idx];  
 
-				var style_override = "";
-				if (!hide_ground_truth) {
-					if (ground_truth_labels[idx] == 1)
-						style_override = "similarity_thumb_positive";
-					else if (ground_truth_labels[idx] == -1)
-						style_override = "similarity_thumb_negative";
-				}	
-
-				str += "<p><img id=\"main_preview_image\" class=\"similarity_thumb " + style_override + "\" src=\"" + img_url + "\" width=\"" +
+				str += "<p><img id=\"main_preview_image\" class=\"image_thumb " + style_override + "\" src=\"" + img_url + "\" width=\"" +
                     	main_preview_div.clientWidth + "\" height=\"" + main_preview_div.clientWidth + "\" /></p>";
 			}
 
