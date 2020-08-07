@@ -701,7 +701,7 @@
 				datapoint_list.push(idx); 
 		}
 
-		var str = "<h3>" + datapoint_list.length + " datapoints passing the current filter (in sorted order)</h3>";
+		var str = "<h3>" + datapoint_list.length + " datapoints pass the current filter (displayed in sorted order)</h3>";
 
 		if (datapoint_type == DATAPOINT_TYPE_TEXT) {
 			str += create_list_text(datapoint_list);
@@ -1341,7 +1341,7 @@ Only show data points where
 	<input type="text" id="select_input_box" style="width: 50px" onchange="handle_select_datapoint_from_input_box()"" onfocus="this.value=''" "/> 
 	<button id="select_input_box" type="button" onclick="handle_select_datapoint_from_box()">Go</button> | 
 	<button id="toggle_hide_ground_truth_button" type="button" onclick="handle_toggle_hide_ground_truth()">Hide Ground Truth</button> | 
-	<button id="show_unfiltered_thumbnails_button" type="button" onclick="handle_show_datapoints_viz_list()">Show All Datatpoints</button>
+	<button id="show_unfiltered_thumbnails_button" type="button" onclick="handle_show_datapoints_viz_list()">Show Datapoints</button>
 	</td>
 </tr>
 </table>
