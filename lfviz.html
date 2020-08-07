@@ -681,8 +681,8 @@
 	}
 
 	function clear_datapoints_viz_list() {
-		// Don't clear if it's a similar datapoints list. We only want to clear if this component of the
-		// page is showing a visualization of all data in the visualizer matrix
+		// Don't clear list if it's a similar datapoints list. We only want to clear if the list is
+		// showing a visualization of all data in the visualizer matrix that passed the current filter
 		//FIXME(kayvonf): very hacky to look for there NOT being a similarity list
 		if (cur_similarity_idx == -1) {
 			thumbnail_list_div.innerHTML = "";
@@ -950,7 +950,7 @@
 				// row shouldn't pass an "all voting LFs" filter if there are no voting LFs
 				// FIXME(kayvonf): We current allow a row to pass the filter "all voting LFs agree" even if
 				// there is only 1 voting LF.  Is this the desired behavior?
-				if (num_votes < 0)
+				if (num_votes == 0)
 					row_filter_mask[i] = false;
 			}
 		}
