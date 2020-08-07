@@ -22,7 +22,10 @@ class AnimatedThumbnailWidget {
 		this.dom_image = dom_image;
 		this.urls = urls;
 		this.datapoint_idx = datapoint_idx;
+
+		// FIXME(kayvonf): I currently hardcoded index to '1' for IMAGE_URL_SEQ case
 		this.current_frame_idx = 1;
+	
 		this.owns_events = owns_events;
 
 		// prefetch for animation purposes
@@ -75,7 +78,10 @@ class AnimatedThumbnailWidget {
 
 	stop_animation() {
 		cancelAnimationFrame(this.anim_request);
+		
+		// FIXME(kayvonf): I currently hardcoded index to '1' for IMAGE_URL_SEQ case
 		this.current_frame_idx = 1;
+		
 		this.dom_image.src = this.urls[this.current_frame_idx];
 	}
 
