@@ -39,7 +39,6 @@ class WeakDB:
 	DATAPOINT_TYPE_TEXT = "text"
 	DATAPOINT_TYPE_IMAGE_URL = "image_url"
 	DATAPOINT_TYPE_IMAGE_URL_SEQ = "image_url_seq"
-	DATAPOINT_TYPE_IMAGE_URL_ABSOLUTE = "image_url_absolute"
 
 	CLOSEST_LIST_SIZE = 20
 	SAMPLE_LIST_SIZE =  50
@@ -115,8 +114,7 @@ class WeakDB:
 		assert len(datapoints) == (self.num_train + self.num_val)
 		valid_types = [
 			WeakDB.DATAPOINT_TYPE_TEXT,
-			WeakDB.DATAPOINT_TYPE_IMAGE_URL,
-			WeakDB.DATAPOINT_TYPE_IMAGE_URL_ABSOLUTE
+			WeakDB.DATAPOINT_TYPE_IMAGE_URL
 		]
 		assert datapoint_type in valid_types
 		self.datapoint_type = datapoint_type

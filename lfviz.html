@@ -27,7 +27,6 @@
 		color: #000000;
 	}
 
-
 	button {
 	  background-color: #a2a2a2; 
 	  border: none;
@@ -84,122 +83,10 @@
 </style>
 
 <script src="js/kmath.js"></script>
-<script src="js/klfviz.js"></script>
+<script src="js/widgets/lfviz.js"></script>
+<script src="js/widgets/anim_thumb.js"></script>
 
 <script>
-
-	function join_path(part1, part2) {
-		var prefix = part1;
-		if (prefix.charAt(prefix.length-1))
-			prefix = prefix + "/";
-
-		return prefix + part2;
-	}
-
-	function get_url_dir(dump_url) {
-		var idx = dump_url.lastIndexOf('/');
-		if (idx == -1)
-			return "";
-		else
-			return dump_url.substr(0, idx+1);
-	}
-
-	class ThumbnailWidget {
-
-		constructor() {
-			this.dom_image = null;
-			this.datapoint_idx = -1;
-			this.current_frame_idx = -1;
-			this.urls = null;
-			this.anim_request = null;
-			this.last_paint_time = null;
-			this.delay = 0;
-			this.owns_events = null;
-		}
-
-		// FIXME(kayvonf): the owns_events parameter exists because there are two ways this object
-		// gets attached to an image: the main preview way and the small thumbnail way.
-		// I will clean this up later.
-		attach(dom_image, datapoint_idx, urls, owns_events) {
-
-			if (this.dom_image != null)
-				this.detach();
-
-			this.dom_image = dom_image;
-			this.urls = urls;
-			this.datapoint_idx = datapoint_idx;
-			this.current_frame_idx = 1;
-			this.owns_events = owns_events;
-
-			// prefetch for animation purposes
-			this.images = [];
-			for (var i=0; i<this.urls.length; i++)
-				this.images[i] = new Image(this.urls[i]);
-
-			if (this.owns_events) {
-				this.dom_image.addEventListener("mouseover", this.handle_mouseover, false);
-				this.dom_image.addEventListener("mouseout", this.handle_mouseout, false);
-				this.start_animation(0);
-			} else {
-				this.start_animation(0);
-			}
-		}
-
-		detach() {
-			if (this.dom_image != null) {
-				this.stop_animation();
-				if (this.owns_events) {
-					this.dom_image.removeEventListener("mouseover", this.handle_mouseover, false);
-					this.dom_image.removeEventListener("mouseout", this.handle_mouseout, false);
-				}
-			}
-			this.dom_image = null;
-		}
-
-		animate() {
-			var current_time = performance.now();
-			if (current_time - this.last_paint_time > this.delay) {
-				this.delay = 100;
-				this.current_frame_idx++;
-				if (this.current_frame_idx == this.urls.length)
-					this.current_frame_idx = 0;
-				this.dom_image.src = this.urls[this.current_frame_idx];
-				this.last_paint_time = current_time;
-			}
-			this.anim_request = requestAnimationFrame( () => this.animate());
-		}
-
-		start_animation(initial_delay) {
-			
-			// animation could be running, so stop and restart
-			this.stop_animation();
-
-			this.delay = initial_delay;
-			this.last_paint_time = performance.now();
-			this.anim_request = requestAnimationFrame( () => this.animate());
-		}
-
-		stop_animation() {
-			cancelAnimationFrame(this.anim_request);
-			this.current_frame_idx = 1;
-			this.dom_image.src = this.urls[this.current_frame_idx];
-		}
-
-		handle_mouseover = event => {
-			this.start_animation(0);
-		}
-
-		handle_mouseout = event => {
-			this.stop_animation();
-		}
-	}
-
-	class FilterDef {
-		constructor(filter, options) {
-			this.filter = filter;
-			this.options = options;
-		}
-	}
 
 	// FIXME(kayvonf): hacky enum.
 	// Need to figure out what is the right way to do this in Javascript
@@ -218,11 +105,37 @@
 	var DATAPOINT_TYPE_TEXT = 1;
 	var DATAPOINT_TYPE_IMAGE_URL = 2;
 	var DATAPOINT_TYPE_IMAGE_URL_SEQ = 3;
-	var DATAPOINT_TYPE_IMAGE_URL_ABSOLUTE = 4;
 
-	var LFVIZ_CONFIG_FILE_DIR = 'lfviz_config';
+	// append part2 to part1 to create a path (similar to os.path.join() in Python)
+	function join_path(part1, part2) {
+		var prefix = part1;
+		if (prefix.charAt(prefix.length-1))
+			prefix = prefix + "/";
+		return prefix + part2;
+	}
 
-	var lfviz = new LFViz;
+	// extract the directory part of a url
+	function get_url_dir(dump_url) {
+		var idx = dump_url.lastIndexOf('/');
+		if (idx == -1)
+			return "";
+		else
+			return dump_url.substr(0, idx+1);
+	}
+	
+	// return true is a url string is an absolute url, false otherwise
+	function is_absolute_url(url) {
+		return (url.indexOf("http://") == 0 ||
+				url.indexOf("https://") == 0 ||
+				url.indexOf("/") == 0);
+	}
+
+	class FilterDef {
+		constructor(filter, options) {
+			this.filter = filter;
+			this.options = options;
+		}
+	}
 
 	///////////////////////////////////////////////////////////
 	// input data (from the debug dump) 
@@ -266,6 +179,10 @@
 	// viz application state
 	///////////////////////////////////////////////////////////
 
+	var LFVIZ_CONFIG_FILE_DIR = 'lfviz_config';
+
+	var lfviz_widget = new LFViz;
+
 	// index of datapoint in preview pane
 	var cur_preview_idx;
 
@@ -288,16 +205,20 @@
 	var pending_data_load_events;
 
 	// key DOM elements 
-	var loading_div;    // where to render datapoint previews
-	var main_viz_div;   // main div for all the UI elements
-	var preview_div;    // div containing the main preview
+	var loading_div;         // where to render datapoint previews
+	var main_viz_div;        // main div for all the UI elements
+	var main_preview_div;    // div containing the main preview
+	var thumbnail_list_div;  // div containing all the thumbnails
 
 	// handles thumbnail animation
-	var preview_thumbnail_widget = new ThumbnailWidget;
-	var small_thumbnail_widget = new ThumbnailWidget;
+	var main_preview_image_widget = new AnimatedThumbnailWidget;
+	var thumbnail_list_widget = new AnimatedThumbnailWidget;
 
 	// hide any indication of ground truth data in the UI, even if it exists in the dataset
 	var hide_ground_truth = false;
+
+	///////////////////////////////////////////////////////////
+	///////////////////////////////////////////////////////////
 
 	// Entrypoint that initiates logic for loading data from the server via a sequence of async requests 
 	//
@@ -307,6 +228,8 @@
 	//
 	// See handle_data_load_complete() for the logic that occurs when all data has loaded. 
 	function load_data(dump_url) {
+
+		console.log("Loading weakdb data dump: " + dump_url);
 
  		fetch(dump_url)
  			.then(function(response) {
@@ -480,8 +403,6 @@
 			datapoint_type = DATAPOINT_TYPE_IMAGE_URL;
 		else if (info.datatype == "image_url_seq")
 			datapoint_type = DATAPOINT_TYPE_IMAGE_URL_SEQ;
-		else if (info.datatype == "image_url_absolute")
-			datapoint_type = DATAPOINT_TYPE_IMAGE_URL_ABSOLUTE;
 		else
 			datapoint_type = DATAPOINT_TYPE_UNKNOWN;
 
@@ -520,22 +441,25 @@
 	function handle_data_load_complete() {
 		var num_total = num_train + num_val;
 
-		// if the type of the data is an image, need to patch up the urls to make
-		// them relative to dump_base_dir, unless URL is absolute
+		// if the type of the data is an image url, need to patch up the urls to make
+		// them relative to dump_base_dir (unless URL is absolute)
 		if (datapoint_type == DATAPOINT_TYPE_IMAGE_URL) {
 			for (var i=0; i<num_total; i++)
-				datapoints[i] = join_path(dump_base_dir, datapoints[i]);
+				if (!is_absolute_url(datapoints[i]))
+					datapoints[i] = join_path(dump_base_dir, datapoints[i]);
 
 		} else if (datapoint_type == DATAPOINT_TYPE_IMAGE_URL_SEQ) {
 			for (var i=0; i<num_total; i++)
 				for (var j=0; j<datapoints[i].length; j++)
+					if (!is_absolute_url(datapoints[i][j]))
 					datapoints[i][j] = join_path(dump_base_dir, datapoints[i][j]);
 		}
 
+		// run a bunch of checks on the integrity of the data
 		if (!check_data_sanity())
 			alert("Data in dump file did not pass sanity check.");
 
-		console.log("Data load complete: train size=" + num_train + ", val size=" + num_val + ", num LFs=" + num_lf);
+		console.log("Data load complete (train size=" + num_train + ", val size=" + num_val + ", num LFs=" + num_lf + ")");
 
 		// update the filter selection dropdown box to include options for the various labeling functions
 		setup_filters();
@@ -572,7 +496,7 @@
 		// communicate data to the viz widget
 		var lf_matrix = display_ext_data ? lf_matrix_ext : lf_matrix_noext;
 		var prob_labels = display_ext_data ? prob_labels_ext : prob_labels_noext;
-		lfviz.set_data(num_total, num_lf, lf_matrix, prob_labels, handle_data_preview);
+		lfviz_widget.set_data(num_total, num_lf, lf_matrix, prob_labels, handle_show_data_preview);
 
 		// data has changed, so recompute filters and sorts
 		clear_filter();
@@ -628,45 +552,34 @@
 	}
 
 	function handle_select_datapoint(datapoint_idx) {
-		lfviz.set_selection(datapoint_idx);
+		lfviz_widget.set_selection(datapoint_idx);
 	}
 
-	function handle_select_datapoint_from_box() {
+	function handle_select_datapoint_from_input_box() {
 		var input_el = document.getElementById("select_input_box");
 		var value = parseInt(input_el.value);
 		if (!isNaN(value))
-			lfviz.set_selection(value);
+			lfviz_widget.set_selection(value);
 		else
 			input_el.value = '';
 	}
 
 	function handle_thumbnail_mouseover(datapoint_idx) {
 		var img_el = document.getElementById("thumbnail_image_" + datapoint_idx);
-		small_thumbnail_widget.attach(img_el, datapoint_idx, datapoints[datapoint_idx], false);
+		thumbnail_list_widget.attach(img_el, datapoint_idx, datapoints[datapoint_idx], false);
 	}
 
 	function handle_thumbnail_mouseout(datapoint_idx) {
-		small_thumbnail_widget.detach();
+		thumbnail_list_widget.detach();
 	}
 
-	function handle_view_similar(idx) {
-		if (datapoint_type == DATAPOINT_TYPE_TEXT)
-			handle_view_similar_text(idx);
-		else
-			handle_view_similar_images(idx);
-	}
+	function create_list_text(items) {
 
-	function handle_view_similar_text(idx) {
+		var num_items = items.length;
 
-		var similarity_el = document.getElementById("similarity");
-
-		var num_thumbs = Math.min(100, similarity_rankings[idx].length);
-
-		cur_similarity_idx = idx;
-		var str = "<h3>Top " + num_thumbs + " most similar items to datapoint " + idx + "</h3>";
-		str += "<div>";
-		for (var i=0; i<num_thumbs; i++) {
-			var neighbor_idx = similarity_rankings[idx][i];
+		var str = "<div>";
+		for (var i=0; i<num_items; i++) {
+			var neighbor_idx = items[i];
 			str += "<div class=\"text_similarity_preview\">";
 			str += "<div>";
 			str += datapoints[neighbor_idx];
@@ -674,77 +587,115 @@
 			str += "<button onclick=\"handle_select_datapoint(" + neighbor_idx + ")\">Select</button>";
 			str += "</div>"
 		}
-
 		str += "</div>";
-		similarity_el.innerHTML = str;
+		return str;
 	}
 
-	function handle_view_similar_images(image_idx) {
+	function create_list_images(items) {
 
-		var similarity_el = document.getElementById("similarity");
+		num_items = items.length;
 
-		cur_similarity_idx = image_idx;
+		var str = "<div>";
+		for (var i=0; i<num_items; i++) {
+
+			var neighbor_idx = items[i];
+			
+			var img_url;
+			var img_events_str;
+
+			// FIXME(kayvonf): I currently hardcoded index to '1' for IMAGE_URL_SEQ case
+			if (datapoint_type == DATAPOINT_TYPE_IMAGE_URL) {
+				img_url = datapoints[neighbor_idx];
+				img_events_str = "";
+			} else {
+				img_url = datapoints[neighbor_idx][1];
+				img_events_str = "onmouseover=\"handle_thumbnail_mouseover(" + neighbor_idx + ")\" onmouseout=\"handle_thumbnail_mouseout(" + neighbor_idx + ")\"";
+			}
+
+			var style_override = "";
+			if (!hide_ground_truth) {
+				if (ground_truth_labels[neighbor_idx] == 1)
+					style_override = "similarity_thumb_positive";
+				else if (ground_truth_labels[neighbor_idx] == -1)
+					style_override = "similarity_thumb_negative";
+			}	
+
+			str += "<a href=\"#\" onclick=\"handle_select_datapoint(" + neighbor_idx + ")\">";
+			str += "<img id=\"thumbnail_image_" + neighbor_idx + "\" class=\"similarity_thumb " + style_override + "\" " + img_events_str + " src=\"" + img_url + "\" width=\"100\" height=\"100\" /></a>";
+		}
+		str += "</div>";
+	
+		return str;
+	}
+
+	function handle_show_similar_datapoints(idx) {
+
+		cur_similarity_idx = idx;
 
 		if (cur_similarity_idx == -1) {
 
-			similarity_el.innerHTML = "";
+			thumbnail_list_div.innerHTML = "";
 
 		} else {
 
-			var num_thumbs = Math.min(250, similarity_rankings[image_idx].length);
+			var num_thumbs = Math.min(250, similarity_rankings[idx].length);
 
-			var str = "<h3>Top " + num_thumbs + " most similar images to datapoint " + image_idx + "</h3>";
-
-			str += "<div>";
+			var item_list = [];
 			for (var i=0; i<num_thumbs; i++) {
-
-				var neighbor_idx = similarity_rankings[image_idx][i];
-				
-				var img_url;
-				var img_events_str;
-
-				// FIXME(kayvonf): I currently hardcoded index for IMAGE_URL_SEQ case
-				if (datapoint_type == DATAPOINT_TYPE_IMAGE_URL || datapoint_type == DATAPOINT_TYPE_IMAGE_URL_ABSOLUTE) {
-					img_url = datapoints[neighbor_idx];
-					img_events_str = "";
-				} else {
-					img_url = datapoints[neighbor_idx][1];
-					img_events_str = "onmouseover=\"handle_thumbnail_mouseover(" + neighbor_idx + ")\" onmouseout=\"handle_thumbnail_mouseout(" + neighbor_idx + ")\"";
-				}
-
-				var style_override = "";
-				if (!hide_ground_truth) {
-					if (ground_truth_labels[neighbor_idx] == 1)
-						style_override = "similarity_thumb_positive";
-					else if (ground_truth_labels[neighbor_idx] == -1)
-						style_override = "similarity_thumb_negative";
-				}	
-
-				str += "<a href=\"#\" onclick=\"handle_select_datapoint(" + neighbor_idx + ")\">";
-				str += "<img id=\"thumbnail_image_" + neighbor_idx + "\" class=\"similarity_thumb " + style_override + "\" " + img_events_str + " src=\"" + img_url + "\" width=\"100\" height=\"100\" /></a>";
+				item_list.push(similarity_rankings[idx][i]);
 			}
 
-			str += "</div>";
-			similarity_el.innerHTML = str;
+			var str = "";
 
+			if (datapoint_type == DATAPOINT_TYPE_TEXT) {
+				str += "<h3>Top " + num_thumbs + " most similar items to datapoint " + idx + "</h3>";
+				str += create_list_text(item_list);
+			}
+			else {
+				str += "<h3>Top " + num_thumbs + " most similar images to datapoint " + idx + "</h3>";
+				str += create_list_images(item_list);
+			}
+
+			thumbnail_list_div.innerHTML = str;
 		}
-
-		return false;
 	}
 
-	function handle_data_preview(idx) {
+	function handle_show_filtered_datapoints() {
+
+		cur_similarity_idx = -1;
+
+		var datapoint_list = [];
+		var num_total = num_train + num_val;
+		for (var i=0; i<num_total; i++) {
+			var idx = row_sorting[i];
+			if (row_filter_mask[idx] == true)
+				datapoint_list.push(idx); 
+		}
+
+		var str = "<h3>" + datapoint_list.length + " datapoints passing the current filter (in sorted order)</h3>";
+
+		if (datapoint_type == DATAPOINT_TYPE_TEXT) {
+			str += create_list_text(datapoint_list);
+		} else {
+			str += create_list_images(datapoint_list);
+		}
+
+		thumbnail_list_div.innerHTML = str;
+	}
+
+	function handle_show_data_preview(idx) {
 
 		cur_preview_idx = idx;
 
 		if (idx == -1) {
 
-			preview_thumbnail_widget.detach();
-			preview_div.innerHTML = "";
+			main_preview_image_widget.detach();
+			main_preview_div.innerHTML = "";
 
 		} else {
 
         	if (datapoint_type == DATAPOINT_TYPE_IMAGE_URL_SEQ)
-	        	preview_thumbnail_widget.detach();
+	        	main_preview_image_widget.detach();
 
 			var num_total = num_train + num_val;
 			var lf_matrix = display_ext_data ? lf_matrix_ext : lf_matrix_noext;
@@ -756,7 +707,7 @@
 
 				str += "<p><div class=\"text_main_preview\">" + datapoints[idx] + "</div></p>";
 
-			} else if (datapoint_type == DATAPOINT_TYPE_IMAGE_URL || datapoint_type == DATAPOINT_TYPE_IMAGE_URL_SEQ || datapoint_type == DATAPOINT_TYPE_IMAGE_URL_ABSOLUTE) {
+			} else if (datapoint_type == DATAPOINT_TYPE_IMAGE_URL || datapoint_type == DATAPOINT_TYPE_IMAGE_URL_SEQ) {
 
 				// FIXME(kayvonf): I currently hardcoded index for IMAGE_URL_SEQ case
 				var img_url = (datapoint_type == DATAPOINT_TYPE_IMAGE_URL_SEQ) ? datapoints[idx][1] : datapoints[idx];  
@@ -770,7 +721,7 @@
 				}	
 
 				str += "<p><img id=\"main_preview_image\" class=\"similarity_thumb " + style_override + "\" src=\"" + img_url + "\" width=\"" +
-                    	preview_div.clientWidth + "\" height=\"" + preview_div.clientWidth + "\" /></p>";
+                    	main_preview_div.clientWidth + "\" height=\"" + main_preview_div.clientWidth + "\" /></p>";
 			}
 
 			str += "<p>";
@@ -803,12 +754,12 @@
 
             // FIXME(kayvonf): terrible hack. Hardcoding this event handler for now
             if (has_similarity_data)
-	            str += "<p><a href=\"#\" onclick=\"handle_view_similar(" + idx + ")\">View Similar Datapoints</p>"
+	            str += "<p><a href=\"#\" onclick=\"handle_show_similar_datapoints(" + idx + ")\">View Similar Datapoints</p>"
 
-        	preview_div.innerHTML = str;
+        	main_preview_div.innerHTML = str;
 
         	if (datapoint_type == DATAPOINT_TYPE_IMAGE_URL_SEQ)
-	        	preview_thumbnail_widget.attach(document.getElementById("main_preview_image"), idx, datapoints[idx], true);
+	        	main_preview_image_widget.attach(document.getElementById("main_preview_image"), idx, datapoints[idx], true);
 		}
 	}
 
@@ -955,7 +906,17 @@
 
 	function clear_filter() {
 		compute_row_filter_mask(-1, 0);
-		lfviz.set_row_filter_mask(row_filter_mask);
+		lfviz_widget.set_row_filter_mask(row_filter_mask);
+		clear_datapoints_viz_list();
+	}
+
+	function clear_datapoints_viz_list() {
+		// Don't clear if it's a similar datapoints list. We only want to clear if this component of the
+		// page is showing a visualization of all data in the visualizer matrix
+		//FIXME(kayvonf): very hacky to look for there NOT being a similarity list
+		if (cur_similarity_idx == -1) {
+			thumbnail_list_div.innerHTML = "";
+		}
 	}
 
 	// "part 1" is the select of the filter type.  Note that most filters also need the user to
@@ -968,8 +929,6 @@
 		var select_value_box = document.getElementById("select_lf_status");
 
 		var cur_option_val = select_value_box.value;
-
-		console.log("Selected: " + select_box.value);
 
 		for (var i=0; i<available_filters.length; i++) {
 			if (available_filters[i].filter == select_box.value) {
@@ -1216,11 +1175,13 @@
 			}
 		}
 
-		lfviz.set_row_filter_mask(row_filter_mask);
+		lfviz_widget.set_row_filter_mask(row_filter_mask);
+		clear_datapoints_viz_list();
 	}
 
-	// toggles the visualizer between data from LF's that are not extended, and those that have been extended
-	function handle_toggle_show_extended() {
+	// toggles the visualizer between displaying data from LF's that have not
+	// been extended and those that have been extended
+	function handle_toggle_show_extended_data() {
 
 		if (!has_extended_data)
 			return;
@@ -1246,11 +1207,13 @@
 		}
 
 		// update data in the viz widget
-		lfviz.update_data(lf_matrix, prob_labels);
+		lfviz_widget.update_data(lf_matrix, prob_labels);
 
 		// recompute masks and sorts since the data input to these operations has changed
 		handle_filter_change();
 		handle_sort_change();
+
+		clear_datapoints_viz_list();
 	}
 
 	function handle_toggle_hide_ground_truth() {
@@ -1266,8 +1229,8 @@
 
 		// redraw the preview and similarity thumbnail sections to reflect
 		// the new state of hide_ground_truth
-		handle_view_similar(cur_similarity_idx);
-		handle_data_preview(cur_preview_idx);
+		handle_show_similar_datapoints(cur_similarity_idx);
+		handle_show_data_preview(cur_preview_idx);
 	}
 
 	// sorting predicate
@@ -1298,13 +1261,12 @@
 			// by default, value is the position in the original list
 			var value = i;
 
-			if (sort_value == "sort_by_label_model") {
+			if (sort_value == "sort_by_label_model") {	
 				// use label model score
 				value = prob_labels[i];
 			} else if (sort_value == "sort_by_ground_truth_label") {
 				// use ground truth label
 				value = ground_truth_labels[i];
-
 			} else if (sort_value == "sort_by_change_from_extension") {
 				// sort key is the change in label model output between the extended and non-extensed label models					
 				value = prob_labels_ext[i] - prob_labels_noext[i];
@@ -1340,14 +1302,16 @@
 			row_sorting.push(index_list[i][0]);
 		}
 
-		lfviz.set_row_sorting(row_sorting);
+		lfviz_widget.set_row_sorting(row_sorting);
+		clear_datapoints_viz_list()
 	}
 
 	function handle_onload() {
 
-		preview_div = document.getElementById('preview_div');
+		main_preview_div = document.getElementById('main_preview_div');
 		loading_div = document.getElementById('loading_div');
-		main_viz_div = document.getElementById('main_viz_div')
+		main_viz_div = document.getElementById('main_viz_div');
+		thumbnail_list_div = document.getElementById('thumbnail_list_div');
 
 		// generate a lfviz config file url
 
@@ -1373,28 +1337,27 @@
 			})
 			.then(function(config_data) {
 
-				// parse the config file to get the dataset to load, as well as configuration
-				// parameters for the lfviz widget
+				// Config file has loaded. Get the webdb data dump to load,
+				// as well as configuration parameters for the lfviz widget
 
 				dump_url = config_data.dump_url;
 
-  				// dump_base_dir: this is the directory where all the dump files will be
+  				// dump_base_dir: this is the directory where all the dump files are located
 
 				dump_base_dir = get_url_dir(dump_url);
-				console.log('Base dir: ' + dump_base_dir);
 
 				// initialize lfviz widget
 
 				var main_canvas = document.getElementById('main_canvas');
 
-				lfviz.init(
+				lfviz_widget.init(
 					main_canvas,
 					config_data.viz_grid_width,
 					config_data.viz_grid_height,
 					config_data.viz_grid_box_width,
 					config_data.viz_grid_box_height);
 				
-				// kick off data loading
+				// load the weakdb data dump
 
 				load_data(dump_url);
 
@@ -1409,12 +1372,12 @@
 
 <body onload="handle_onload()">
 
-<div id="loading_div">
-</div>
+<div id="loading_div"></div>
+
 <div id="main_viz_div" style="visibility: hidden;">
 
 <canvas id="main_canvas" width="940" height="550" style="border: 1px solid #c0c0c0; display: block; float: left;" ></canvas>
-<div id="preview_div" style="padding-left: 5px; width: 256px; height: 550px; float: left;">&nbsp;</div>
+<div id="main_preview_div" style="padding-left: 5px; width: 256px; height: 550px; float: left;">&nbsp;</div>
 
 <p style="clear: both; padding-top: 1px;">
 <table cellpadding="0" cellspacing="2">
@@ -1422,7 +1385,7 @@
 	<td width="75"><span class="bold_text">Data:</span></td>
 	<td>
 		<span id="toggle_extended_text">Showing data without LF extension.</span>
-		<button id="toggle_extended_button" type="button" style="visibility: hidden;" onclick="handle_toggle_show_extended()">Show Extended Data</button>
+		<button id="toggle_extended_button" type="button" style="visibility: hidden;" onclick="handle_toggle_show_extended_data()">Show Extended Data</button>
 	</td>
 </tr>
 <tr>
@@ -1458,9 +1421,10 @@ Only show data points where
 	</td>
 	<td>
 	Select datapoint:
-	<input type="text" id="select_input_box" style="width: 50px" onchange="handle_select_datapoint_from_box()"" onfocus="this.value=''" "/> 
+	<input type="text" id="select_input_box" style="width: 50px" onchange="handle_select_datapoint_from_input_box()"" onfocus="this.value=''" "/> 
 	<button id="select_input_box" type="button" onclick="handle_select_datapoint_from_box()">Go</button> | 
-	<button id="toggle_hide_ground_truth_button" type="button" onclick="handle_toggle_hide_ground_truth()">Hide Ground Truth</button>
+	<button id="toggle_hide_ground_truth_button" type="button" onclick="handle_toggle_hide_ground_truth()">Hide Ground Truth</button> | 
+	<button id="show_unfiltered_thumbnails_button" type="button" onclick="handle_show_filtered_datapoints()">Show All Datatpoints</button>
 	</td>
 </tr>
 </table>
@@ -1470,7 +1434,7 @@ Only show data points where
 
 <div id="data_info">No data loaded.</div>
 
-<div id="similarity"></div>
+<div id="thumbnail_list_div"></div>
 
 <h3>Help</h3>
 
