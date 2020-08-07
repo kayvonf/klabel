@@ -198,6 +198,9 @@
 	// This mask denoting the rows that should be rendered in the visualizer
 	var row_filter_mask;
 
+	// the number of 1's in the row_filter_mask
+	var num_datapoints_pass_filter;
+
 	// sorting of the rows in the visualizer
 	var row_sorting;
 
@@ -498,9 +501,17 @@
 		var prob_labels = display_ext_data ? prob_labels_ext : prob_labels_noext;
 		lfviz_widget.set_data(num_total, num_lf, lf_matrix, prob_labels, handle_show_data_preview);
 
-		// data has changed, so recompute filters and sorts
-		clear_filter();
+		// data has been reset. Clear any filters, and recompute sort
+		
+		// FIXME(kayvonf): code duplication with contents of handle_filter_change()
+		row_filter_mask = [];
+		for (var i=0; i<num_total; i++)
+			row_filter_mask[i] = true;
+		num_datapoints_pass_filter = num_train + num_val;
+
+		lfviz_widget.set_row_filter_mask(row_filter_mask);
 		handle_sort_change();
+		clear_datapoints_viz_list();
 	}
 
 	// Check consistency of dataset. Verifies that the size of downloaded
@@ -669,7 +680,16 @@
 		}
 	}
 
-	function handle_show_filtered_datapoints() {
+	function clear_datapoints_viz_list() {
+		// Don't clear if it's a similar datapoints list. We only want to clear if this component of the
+		// page is showing a visualization of all data in the visualizer matrix
+		//FIXME(kayvonf): very hacky to look for there NOT being a similarity list
+		if (cur_similarity_idx == -1) {
+			thumbnail_list_div.innerHTML = "";
+		}
+	}
+
+	function handle_show_datapoints_viz_list() {
 
 		cur_similarity_idx = -1;
 
@@ -773,120 +793,6 @@
 		}
 	}
 
-    // HACK(kayvonf): This is a function that filters rows according to a predicate.
-    // It's meant to be throw away code for now.
-    // it returns a boolean array that designates which rows should be retained
-	function compute_row_filter_mask(lf_function, criteria) {
-
-		row_filter_mask = [];
-
-		var disagree_check = false;
-		if (criteria == -2)
-			disagree_check = true;
-
-		var num_total = num_train + num_val;
-		var lf_matrix = (display_ext_data) ? lf_matrix_ext : lf_matrix_noext;
-
-		//
-		// no filter
-		//
-		if (lf_function == -1) {  		
-			for (var i=0; i<num_total; i++) {
-				row_filter_mask[i] = true;
-			}
-
-		//
-		// all LFs match criteria
-		//
-		} else if (lf_function == -2) {  
-
-			for (var i=0; i<num_total; i++) {
-				var idx = i*num_lf;
-				row_filter_mask[i] = true;
-				for (var j=0; j<num_lf; j++) {
-					if (lf_matrix[idx + j] != criteria || lf_matrix[idx+j] == LF_OUTPUT_DISAGREE)
-						row_filter_mask[i] = false;
-				}
-			}
-
-		//
-		// all LFs that vote match critera
-		//
-		} else if (lf_function == -3) { 	
-
-			for (var i=0; i<num_total; i++) {
-				var idx = i*num_lf;
-				var num_votes = 0;
-
-				row_filter_mask[i] = true;
-
-				for (var j=0; j<num_lf; j++) {
-					if (lf_matrix[idx + j] == LF_OUTPUT_ABSTAIN)
-						continue;
-					
-					num_votes++;
-					if (lf_matrix[idx + j] != criteria || lf_matrix[idx+j] == LF_OUTPUT_DISAGREE)
-						row_filter_mask[i] = false;
-				}
-
-				// row shouldn't pass an "all voting LF that..." filter if there are no voting LFs
-				if (num_votes == 0)
-					row_filter_mask[i] = false;
-			}
-
-		//
-		// any LFs match criteria
-		//
-		} else if (lf_function == -4) {
-
-			for (var i=0; i<num_total; i++) {
-				var idx = i*num_lf;
-				row_filter_mask[i] = false;
-				for (var j=0; j<num_lf; j++) {
-
-					if (disagree_check) {
-						for (var k=0; k<num_lf; k++) {
-							if (j != k && 
-								lf_matri_noext[idx+j] != LF_OUTPUT_ABSTAIN && lf_matrix[idx+k] != LF_OUTPUT_ABSTAIN &&
-								lf_matrix[idx+j] != lf_matrix[idx+k]) {
-								row_filter_mask[i] = true; 
-							}
-						}
-
-					} else {
-						if (lf_matrix[idx + j] == criteria)
-							row_filter_mask[i] = true;
-					}
-				}
-			}
-
-		//
-		// specific LFs match criteria
- 		//
-		} else {
-
-			for (var i=0; i<num_total; i++) {
-				var idx = i*num_lf;
-				row_filter_mask[i] = false;
-
-				if (disagree_check) {
-					for (var k=0; k<num_lf; k++) {
-						if (lf_function != k &&
-							lf_matrix[idx+lf_function] != LF_OUTPUT_ABSTAIN && lf_matrix[idx+k] != LF_OUTPUT_ABSTAIN &&
-							lf_matrix[idx+lf_function] != lf_matrix[idx+k]) {
-							row_filter_mask[i] = true; 
-						}
-					}
-
-				} else {
-					if (lf_matrix[idx + lf_function] == criteria)
-						row_filter_mask[i] = true;
-				}
-			}
-
-		}
-	}
-
 	function setup_filters() {
 
 		// these are the options for any individual labeling function 
@@ -911,21 +817,6 @@
 			option.text = available_filters[i].filter;
 			option.value = available_filters[i].filter;
 			select_box.appendChild(option);
-		}
-	}
-
-	function clear_filter() {
-		compute_row_filter_mask(-1, 0);
-		lfviz_widget.set_row_filter_mask(row_filter_mask);
-		clear_datapoints_viz_list();
-	}
-
-	function clear_datapoints_viz_list() {
-		// Don't clear if it's a similar datapoints list. We only want to clear if this component of the
-		// page is showing a visualization of all data in the visualizer matrix
-		//FIXME(kayvonf): very hacky to look for there NOT being a similarity list
-		if (cur_similarity_idx == -1) {
-			thumbnail_list_div.innerHTML = "";
 		}
 	}
 
@@ -1185,6 +1076,17 @@
 			}
 		}
 
+		num_datapoints_pass_filter = 0;
+		for (var i=0; i<num_total; i++) {
+			if (row_filter_mask[i] == true)
+				num_datapoints_pass_filter++;
+		}
+
+		if (num_datapoints_pass_filter < num_total) {
+			var num_passed_el = document.getElementById("select_lf_num_passed");
+			num_passed_el.innerHTML = "(" + num_datapoints_pass_filter + " datapoints pass filter)";
+		}
+
 		lfviz_widget.set_row_filter_mask(row_filter_mask);
 		clear_datapoints_viz_list();
 	}
@@ -1422,7 +1324,7 @@ Only show data points where
     is
     <select id="select_lf_status" style="width: 175px;" onchange="handle_filter_change()">
     </select>
-    .		
+    <span id="select_lf_num_passed" style="padding-left: 20px;"></span>
 	</td>	
 </tr>
 <tr>
@@ -1434,7 +1336,7 @@ Only show data points where
 	<input type="text" id="select_input_box" style="width: 50px" onchange="handle_select_datapoint_from_input_box()"" onfocus="this.value=''" "/> 
 	<button id="select_input_box" type="button" onclick="handle_select_datapoint_from_box()">Go</button> | 
 	<button id="toggle_hide_ground_truth_button" type="button" onclick="handle_toggle_hide_ground_truth()">Hide Ground Truth</button> | 
-	<button id="show_unfiltered_thumbnails_button" type="button" onclick="handle_show_filtered_datapoints()">Show All Datatpoints</button>
+	<button id="show_unfiltered_thumbnails_button" type="button" onclick="handle_show_datapoints_viz_list()">Show All Datatpoints</button>
 	</td>
 </tr>
 </table>
