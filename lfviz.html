@@ -499,7 +499,7 @@
 		// communicate data to the viz widget
 		var lf_matrix = display_ext_data ? lf_matrix_ext : lf_matrix_noext;
 		var prob_labels = display_ext_data ? prob_labels_ext : prob_labels_noext;
-		lfviz_widget.set_data(num_total, num_lf, lf_matrix, prob_labels, handle_show_data_preview);
+		lfviz_widget.set_data(num_total, num_lf, lf_matrix, prob_labels, handle_show_main_preview);
 
 		// data has been reset. Clear any filters, and recompute sort
 		
@@ -582,6 +582,10 @@
 
 	function handle_thumbnail_mouseout(datapoint_idx) {
 		thumbnail_list_widget.detach();
+	}
+
+	function handle_datapoint_annotation(datapoint_idx) {
+		console.log('key pressed!');
 	}
 
 	function create_list_text(items) {
@@ -712,7 +716,7 @@
 		thumbnail_list_div.innerHTML = str;
 	}
 
-	function handle_show_data_preview(idx) {
+	function handle_show_main_preview(idx) {
 
 		cur_preview_idx = idx;
 
@@ -1147,7 +1151,7 @@
 		// redraw the preview and similarity thumbnail sections to reflect
 		// the new state of hide_ground_truth
 		handle_show_similar_datapoints(cur_similarity_idx);
-		handle_show_data_preview(cur_preview_idx);
+		handle_show_main_preview(cur_preview_idx);
 	}
 
 	// sorting predicate
@@ -1220,7 +1224,7 @@
 		}
 
 		lfviz_widget.set_row_sorting(row_sorting);
-		clear_datapoints_viz_list()
+		clear_datapoints_viz_list();
 	}
 
 	function handle_onload() {
