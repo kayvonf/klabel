@@ -1084,7 +1084,12 @@
 
 		if (num_datapoints_pass_filter < num_total) {
 			var num_passed_el = document.getElementById("select_lf_num_passed");
-			num_passed_el.innerHTML = "(" + num_datapoints_pass_filter + " datapoints pass filter)";
+			var str = "(" + num_datapoints_pass_filter;
+			if (num_datapoints_pass_filter == 1)
+				str += " datapoint passes filter)"
+			else
+				str += " datapoints pass filter)";
+			num_passed_el.innerHTML = str;
 		}
 
 		lfviz_widget.set_row_filter_mask(row_filter_mask);
