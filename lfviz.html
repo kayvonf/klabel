@@ -218,6 +218,7 @@
 	var DATAPOINT_TYPE_TEXT = 1;
 	var DATAPOINT_TYPE_IMAGE_URL = 2;
 	var DATAPOINT_TYPE_IMAGE_URL_SEQ = 3;
+	var DATAPOINT_TYPE_IMAGE_URL_ABSOLUTE = 4;
 
 	var LFVIZ_CONFIG_FILE_DIR = 'lfviz_config';
 
@@ -479,6 +480,8 @@
 			datapoint_type = DATAPOINT_TYPE_IMAGE_URL;
 		else if (info.datatype == "image_url_seq")
 			datapoint_type = DATAPOINT_TYPE_IMAGE_URL_SEQ;
+		else if (info.datatype == "image_url_absolute")
+			datapoint_type = DATAPOINT_TYPE_IMAGE_URL_ABSOLUTE;
 		else
 			datapoint_type = DATAPOINT_TYPE_UNKNOWN;
 
@@ -518,7 +521,7 @@
 		var num_total = num_train + num_val;
 
 		// if the type of the data is an image, need to patch up the urls to make
-		// them relative to dump_base_dir
+		// them relative to dump_base_dir, unless URL is absolute
 		if (datapoint_type == DATAPOINT_TYPE_IMAGE_URL) {
 			for (var i=0; i<num_total; i++)
 				datapoints[i] = join_path(dump_base_dir, datapoints[i]);
@@ -701,7 +704,7 @@
 				var img_events_str;
 
 				// FIXME(kayvonf): I currently hardcoded index for IMAGE_URL_SEQ case
-				if (datapoint_type == DATAPOINT_TYPE_IMAGE_URL) {
+				if (datapoint_type == DATAPOINT_TYPE_IMAGE_URL || datapoint_type == DATAPOINT_TYPE_IMAGE_URL_ABSOLUTE) {
 					img_url = datapoints[neighbor_idx];
 					img_events_str = "";
 				} else {
@@ -753,10 +756,10 @@
 
 				str += "<p><div class=\"text_main_preview\">" + datapoints[idx] + "</div></p>";
 
-			} else if (datapoint_type == DATAPOINT_TYPE_IMAGE_URL || datapoint_type == DATAPOINT_TYPE_IMAGE_URL_SEQ) {
+			} else if (datapoint_type == DATAPOINT_TYPE_IMAGE_URL || datapoint_type == DATAPOINT_TYPE_IMAGE_URL_SEQ || datapoint_type == DATAPOINT_TYPE_IMAGE_URL_ABSOLUTE) {
 
 				// FIXME(kayvonf): I currently hardcoded index for IMAGE_URL_SEQ case
-				var img_url = (datapoint_type == DATAPOINT_TYPE_IMAGE_URL) ? datapoints[idx] : datapoints[idx][1];  
+				var img_url = (datapoint_type == DATAPOINT_TYPE_IMAGE_URL_SEQ) ? datapoints[idx][1] : datapoints[idx];  
 
 				var style_override = "";
 				if (!hide_ground_truth) {

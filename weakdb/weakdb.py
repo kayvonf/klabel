@@ -22,12 +22,24 @@ import numpy
 def float32_to_float64(x):			
 	return [ numpy.float64(item) for item in x]
 
+# HACK(danfu): If the inputs are Numpy arrays, need to turn them into flat lists
+np_arr = numpy.zeros(1)
+def is_numpy(arr):
+	return isinstance(arr, type(np_arr))
+
+def listify_numpy(arr):
+	if is_numpy(arr):
+		return arr.flatten().tolist()
+	else:
+		return arr
+
 class WeakDB:
 
 	DATAPOINT_TYPE_UNKNOWN = "unknown"
 	DATAPOINT_TYPE_TEXT = "text"
 	DATAPOINT_TYPE_IMAGE_URL = "image_url"
 	DATAPOINT_TYPE_IMAGE_URL_SEQ = "image_url_seq"
+	DATAPOINT_TYPE_IMAGE_URL_ABSOLUTE = "image_url_absolute"
 
 	CLOSEST_LIST_SIZE = 20
 	SAMPLE_LIST_SIZE =  50
@@ -74,34 +86,46 @@ class WeakDB:
 		self.lf_names = lf_names
 
 	def set_lf_matrix(self, lf_matrix):
+		lf_matrix = listify_numpy(lf_matrix)
 		assert len(lf_matrix) == (self.num_train + self.num_val) * self.num_lf
 		self.lf_matrix = lf_matrix
 
 	def set_extended_lf_matrix(self, extended_lf_matrix):
+		extended_lf_matrix = listify_numpy(extended_lf_matrix)
 		assert len(extended_lf_matrix) == (self.num_train + self.num_val) * self.num_lf
 		self.extended_lf_matrix = extended_lf_matrix
 
 	def set_prob_labels(self, prob_labels):
+		prob_labels = listify_numpy(prob_labels)
 		assert len(prob_labels) == (self.num_train + self.num_val)
 		self.prob_labels = prob_labels
 
 	def set_extended_prob_labels(self, extended_prob_labels):
+		extended_prob_labels = listify_numpy(extended_prob_labels)
 		assert len(extended_prob_labels) == (self.num_train + self.num_val)
 		self.extended_prob_labels = extended_prob_labels
 
 	def set_ground_truth(self, ground_truth_labels):
+		ground_truth_labels = listify_numpy(ground_truth_labels)
 		assert len(ground_truth_labels) == (self.num_train + self.num_val)
 		self.ground_truth_labels = ground_truth_labels
 
 	def set_datapoints(self, datapoint_type, datapoints):
+		datapoints = listify_numpy(datapoints)
 		assert len(datapoints) == (self.num_train + self.num_val)
-		assert datapoint_type == WeakDB.DATAPOINT_TYPE_TEXT or datapoint_type == WeakDB.DATAPOINT_TYPE_IMAGE_URL
+		valid_types = [
+			WeakDB.DATAPOINT_TYPE_TEXT,
+			WeakDB.DATAPOINT_TYPE_IMAGE_URL,
+			WeakDB.DATAPOINT_TYPE_IMAGE_URL_ABSOLUTE
+		]
+		assert datapoint_type in valid_types
 		self.datapoint_type = datapoint_type
 		self.datapoints = datapoints
 
 	# similarity matrix should be (num_train + num_val) * num_train elements
 	# higher number is more similar
 	def set_similarity_matrix(self, similarity_matrix):
+		similarity_matrix = listify_numpy(similarity_matrix)
 		assert len(similarity_matrix) == ((self.num_train + self.num_val) * self.num_train)
 		self.sorted_dists = []
 		for row_idx in range(self.num_train + self.num_val):
