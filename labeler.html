@@ -1,7 +1,7 @@
 <html>
 <head>
 	
-
+<meta charset="UTF-8">
 
 <style>
 
@@ -24,7 +24,7 @@
 	button {
 	  background-color: #a2a2a2; 
 	  border: none;
-	  color: white;
+	  color: #ffffff;
 	  padding: 2px 6px;
 	  border-radius: 3px;
  	  /*font-family: Open sans, Arial, sans-serif; */
@@ -34,6 +34,14 @@
 
 	button:hover {
 		background-color: #808080;
+	}
+
+	.category_help_item {
+		background-color: #b0b0b0;
+		color: #ffffff;
+		border-radius: 4px;
+		padding: 2px 5px 2px 5px;
+		margin-right: 5px;
 	}
 
 </style>
@@ -52,8 +60,14 @@
 	var model_scores = [];
 	var user_labels = [];
 
+	var status_div;
+
  // fetch documentation
  // https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch
+
+ 	function number_to_html_emoji(x) {
+ 		return "&#x3" + x + ";&#xFE0F;&#x20E3;"; 
+ 	}
 
 	function handle_start_labeling_task() {
 
@@ -83,10 +97,10 @@
 			})
 			.then(function(task_info) {
 
-				console.log(task_info);
-
 				task_id = task_info.task_id;
 				description = task_info.description;				
+				category_mapping = task_info.categories;
+
 				datapoint_urls = task_info.datapoint_urls;
 				datapoint_urls = datapoint_urls.slice(0,10);
 				num_datapoints = datapoint_urls.length;
@@ -101,16 +115,42 @@
 					image_data.push(data);
 				}
 				
-				labeler.load_image_stack(image_data);
+
+				// fill in task information
 
 				var task_info_div = document.getElementById("task_info_div");
 
 				var str = "";
-				str += "<div>Task: " + description + "</div>"
+				str += "<div>" + description + "</div>"
 				task_info_div.innerHTML = str;
+
+				var labeler_help_div = document.getElementById("labeler_help_div");
+
+				// make the labeling UI visible
+				var entries = Array(10).fill("");
+				Object.entries(category_mapping).forEach( entry => {
+					var key_code = entry[1].idx;
+					var category_name = entry[0];
+					entries[key_code] = category_name;
+				});
+
+				var help_str = "Keyboard help: ";
+				for (var i=0; i<10; i++) {
+					var idx = (idx == 9) ? 0 : i+1;
+					if (entries[idx] != "") {
+						help_str += "<span class=\"category_help_item\">";
+						help_str += "" + idx + ": " + entries[idx];
+						help_str += "</span>";
+					}
+				}
+				labeler_help_div.innerHTML = help_str;
 
 				var main_div = document.getElementById("main_div");
 				main_div.style.visibility = "visible";
+
+				labeler.load_image_stack(image_data);
+				labeler.set_categories(category_mapping);
+				labeler.set_focus();
 
 			})
  			.catch(function(err) {
@@ -119,30 +159,9 @@
 
 	}
 
-
-
-	// https://css-tricks.com/having-a-little-fun-with-custom-focus-styles/
-	function handle_mouseover(x) {
-		var id = "item" + x;
-		var el = document.getElementById(id);
-		el.focus();
-
-		var img_id = "img" + x;
-		var img_el = document.getElementById(img_id);
-		img_el.style.boxShadow = "0px 0px 3px 2px #c08080";
-	}
-
-	function handle_mouseout(x) {
-		var img_id = "img" + x;
-		var img_el = document.getElementById(img_id);
-		img_el.style.boxShadow = "";
-	}
-
-	function handle_keydown() {
-		console.log("key down")
-	}
-
 	function handle_onload() {
+
+		status_div = document.getElementById("labeler_status_div")
 
 		const url_params = new URLSearchParams(window.location.search);
 		if (url_params.has("taskid")) {
@@ -157,9 +176,12 @@
 		var main_canvas = document.getElementById("main_canvas");
 
 		labeler.init(main_canvas);
-		labeler.set_annotation_mode(Annotation.ANNOTATION_MODE_PER_FRAME);
+		labeler.set_annotation_mode(Annotation.ANNOTATION_MODE_PER_FRAME_CATEGORY);
 		labeler.set_play_audio(false);
 		labeler.set_letterbox(true);
+		labeler.set_retain_zoom(false);
+		labeler.set_crosshairs_viz(false);
+		labeler.set_background_color("#e0e0e0");
 	}
 
 </script>
@@ -168,22 +190,21 @@
 
 <body onload="handle_onload()">
 
-<p>
+<div>
 	Task: <input type="text" id="task_id_box" style="width: 300px;" onchange="" />
 	Labeler: <input type="text" id="labeler_id_box" style="width: 250px" onchange="" />
 	<button id="get_data_button" type="button" onclick="handle_start_labeling_task()">Get Task</button>
-</p>
+</div>
 
 <div id="main_div" style="visibility: hidden;">
-<p>
+<div id="task_info_div" style="padding: 4px 0px 4px 0px; font-style: italic;"></div>	
 <div>
-	<canvas id="main_canvas" width="960" height="500" style="border: 1px solid #c0c0c0;" ></canvas>
+	<canvas id="main_canvas" width="960" height="500" tabindex="0" style="border: 1px solid #c0c0c0;" ></canvas>
 </div>
-<p>
-<div id="task_info_div"></div>	
+<div id="labeler_help_div" style="padding-top: 6px;"></div>
+<div id="labeler_status_div" style="padding-top: 6px;"></div>
+</div>
 </p>
-</div>
-
 
 </body>
 </html>

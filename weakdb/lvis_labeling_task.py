@@ -12,8 +12,13 @@ for f in glob.glob(os.path.join(FULL_DIR, "*.jpg")):
 	datapoints.append(f)
 
 task = labelingtask.LabelingTask()
-task.set_description("Binary labeling of images in LVIS val set")
+task.set_description("Label the VENDING MACHINE category in LVIS val set")
 task.set_datapoints(datapoints)
+task.set_category_mapping( {
+	"vending machine" : { "idx" : 1, "color" : "#67bf5c" },
+	"background"      : {"idx" : 2, "color" : "#ed665d" },
+	"not sure"        : {"idx" : 9, "color" : "#ffff00" }, 
+	"flag"            : {"idx": 0, "color" : "#ffff00"} })
 
 task.save("labeling_results")
 

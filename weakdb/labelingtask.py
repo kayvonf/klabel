@@ -11,6 +11,7 @@ class LabelingTask:
 		self.name = "task_%s" % self.task_id
 		self.datapoint_urls = []
 		self.model_scores = []
+		self.categories = {}
 
 	def generate_task_id(self):
 		return uuid.uuid4().hex
@@ -27,6 +28,25 @@ class LabelingTask:
 	def set_model_scores(self, model_scores):
 		self.model_scores = model_scores
 
+	def set_categories(self, categories):
+
+		# number keys are used in the viewer
+		assert len(categories) <= 10
+
+		self.categories = {}
+		
+		# start with 1 for ease of UI in labeler (0 key is not next to 1 key)
+		index = 1
+		for c in categories:
+			self.categories[c] = index
+			index = index+1
+			if index == 10:
+				index = 0
+
+	def set_category_mapping(self, categories):
+		assert len(categories) <= 10
+		self.categories = categories
+
 	def load(self, filename):
 		print("Not implemented...")
 
@@ -35,6 +55,7 @@ class LabelingTask:
 		task_info = {
 			"task_id" : self.task_id,
 			"description" : self.description,
+			"categories" : self.categories,
 			"datapoint_urls" : self.datapoint_urls,
 			"labeler_results" : {}
 		}

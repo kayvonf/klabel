@@ -20,10 +20,14 @@
 */
 
 class Annotation {
-	static get ANNOTATION_MODE_PER_FRAME() { return 0; }
+
+	static get INVALID_CATEGORY() { return -1; }
+
+	static get ANNOTATION_MODE_PER_FRAME_CATEGORY() { return 0; }
 	static get ANNOTATION_MODE_POINT() { return 1; }
 	static get ANNOTATION_MODE_TWO_POINTS_BBOX() { return 2; }
 	static get ANNOTATION_MODE_EXTREME_POINTS_BBOX() { return 3; }
+
 	constructor(type) {
 		this.type = type;
 	}
@@ -31,8 +35,8 @@ class Annotation {
 
 class PerFrameAnnotation extends Annotation {
 	constructor(value) {
-		super(Annotation.ANNOTATION_MODE_PER_FRAME);
-		this.value;
+		super(Annotation.ANNOTATION_MODE_PER_FRAME_CATEGORY);
+		this.value = value;
 	}
 }
 
@@ -93,6 +97,8 @@ class ImageLabeler {
 
 		// annotation state
 		this.annotation_mode = Annotation.ANNOTATION_MODE_EXTREME_POINTS_BBOX;
+		this.category_to_name = [];
+		this.category_to_color = [];
 		this.in_progress_points = [];
 
 		// audio
@@ -100,7 +106,7 @@ class ImageLabeler {
 		this.audio_box_done_sound = null;
 
 		// colors
-		this.color_main_canvas = '#202020';
+		this.color_background = '#202020';
 		this.color_cursor_lines = 'rgba(0, 255, 255, 0.5)';
 		this.color_in_progress_box_outline = 'rgba(255, 255, 255, 0.75)';
 		this.color_box_outline = 'rgba(255,200,0,0.75)';
@@ -112,13 +118,19 @@ class ImageLabeler {
 		this.color_per_frame_annotation_outline = 'rgba(255, 50, 50, 0.5)';
 		this.color_zoom_box_outline = 'rgba(255, 0, 0, 1.0)';
 		this.color_zoom_box_fill = 'rgba(255, 0, 0, 0.3)';
+		this.color_category_text_fill = '#000000';
+
+		this.category_text_font = "16px Arial";
 
 		// display settings
 		this.visible_image_region = new BBox2D(0.0, 0.0, 1.0, 1.0);
 		this.letterbox_image = true;  // if false, stretch image to fill canvas
 		this.play_audio = false;
+		this.show_crosshairs = true;
 		this.show_extreme_points = true;
+		this.retain_zoom = true;
 		this.extreme_point_radius = 3;
+
 	}
 
 	// Clamp the cursor to the image dimensions so that clicks,
@@ -183,8 +195,8 @@ class ImageLabeler {
 		return (this.cursorx >= 0 && this.cursory >= 0);
 	}
 
-	is_annotation_mode_per_frame() {
-		return this.annotation_mode == Annotation.ANNOTATION_MODE_PER_FRAME;
+	is_annotation_mode_per_frame_category() {
+		return this.annotation_mode == Annotation.ANNOTATION_MODE_PER_FRAME_CATEGORY;
 	}
 
 	is_annotation_mode_point() {
@@ -259,24 +271,21 @@ class ImageLabeler {
 		this.render();
 	}
 
-	toggle_per_frame_annotation() {
+	set_per_frame_category_annotation(cat_idx) {
 
 		var cur_frame = this.get_current_frame();
 
-		// NOTE(kayvonf): this functionality only works for binary per-frame annotations.
-		// In the future consider extending to any categorical per-frame annotation.
-
 		// if a per-frame annotation exists, remove it
 		for (var i=0; i<cur_frame.data.annotations.length; i++) {
-			if (cur_frame.data.annotations[i].type == Annotation.ANNOTATION_MODE_PER_FRAME) {
+			if (cur_frame.data.annotations[i].type == Annotation.ANNOTATION_MODE_PER_FRAME_CATEGORY) {
 				cur_frame.data.annotations.splice(i, 1);
-				console.log("KLabeler: removed per-frame annotation");
-				return;
 			}
 		}
 
-		cur_frame.data.annotations.push(new PerFrameAnnotation(1));
-		console.log("KLabeler: adding per-frame annotation");
+		if (cat_idx != Annotation.INVALID_CATEGORY) {
+			cur_frame.data.annotations.push(new PerFrameAnnotation(cat_idx));
+			console.log("KLabeler: set per-frame annotation: " + this.category_to_name[cat_idx]);
+		}
 	}
 
 	play_click_audio() {
@@ -428,7 +437,7 @@ class ImageLabeler {
 
 		var ctx = this.main_canvas_el.getContext('2d');
 
-		ctx.fillStyle = this.color_main_canvas;
+		ctx.fillStyle = this.color_background;
 		ctx.fillRect(0, 0, this.main_canvas_el.width, this.main_canvas_el.height);
 
 		var cur_frame = this.get_current_frame();
@@ -454,7 +463,7 @@ class ImageLabeler {
 		// draw guidelines that move with the mouse cursor
 		//
 
-		if (this.is_hovering()) {
+		if (this.show_crosshairs && this.is_hovering()) {
 			ctx.lineWidth = 1;
 			ctx.strokeStyle = this.color_cursor_lines;
 
@@ -548,11 +557,15 @@ class ImageLabeler {
 				        ctx.fill();
 					}
 				}	
-			} else if (ann.type == Annotation.ANNOTATION_MODE_PER_FRAME) {
-				// for now, let's just visualize a per-frame annotation as a highlight around the border
-				ctx.lineWidth = 32;
-				ctx.strokeStyle = this.color_per_frame_annotation_outline;
-				ctx.strokeRect(0, 0, this.main_canvas_el.width, this.main_canvas_el.height);
+			} else if (ann.type == Annotation.ANNOTATION_MODE_PER_FRAME_CATEGORY) {
+
+				// draw the annotation in a box at the top of the screen
+				ctx.fillStyle = this.category_to_color[ann.value]; 
+				ctx.fillRect(0, this.main_canvas_el.height - 25, this.main_canvas_el.width, 25);
+
+				ctx.fillStyle = this.color_category_text_fill;
+				ctx.font = this.category_text_font; 
+				ctx.fillText(this.category_to_name[ann.value], 4, this.main_canvas_el.height - 5);
 			}
 		}
 
@@ -613,7 +626,7 @@ class ImageLabeler {
 		this.cursorx = Number.MIN_SAFE_INTEGER;
 		this.cursory = Number.MIN_SAFE_INTEGER;
 
-		// NOTE(kayvonf):decision made to not clear at this time since mouse can
+		// NOTE(kayvonf): decision made to not clear at this time since mouse can
 		// often leave the canvas as a result of user motion just to find the cursor.
 		//this.clear_zoom_corner_points();
 		//this.clear_in_progress_points();
@@ -628,9 +641,21 @@ class ImageLabeler {
 			if (this.current_frame_index > 0)
 				this.set_current_frame_num(this.current_frame_index-1);
 
+			// reset the zoom
+			if (!this.retain_zoom) {
+				this.visible_image_region = new BBox2D(0.0, 0.0, 1.0, 1.0);
+				this.render();
+			}
+
 		} else if (event.keyCode == 39) {  // right arrow
 			if (this.current_frame_index < this.frames.length-1)
 				this.set_current_frame_num(this.current_frame_index+1);
+
+			// reset the zoom
+			if (!this.retain_zoom) {
+				this.visible_image_region = new BBox2D(0.0, 0.0, 1.0, 1.0);
+				this.render();
+			}
 
 		} else if (event.keyCode == 27) {  // ESC key
 
@@ -653,18 +678,31 @@ class ImageLabeler {
 	}
 
 	handle_keyup = event => {
-		//console.log("KeyUp: " + event.keyCode);
 
-		if (event.keyCode == 32) {          // space
+		if (this.is_annotation_mode_per_frame_category()) {
 
-			if (this.is_annotation_mode_per_frame()) {
-				// ignore spacebar keypress if the image hasn't loaded yet
+			// number key: 0-9
+			if (event.keyCode >= 48 && event.keyCode <= 57) {
+				var key_pressed = event.keyCode - 48;
+				var category_name = this.category_to_name[key_pressed];
+
+				// ignore keys if image hasn't loaded yet
 				var cur_frame = this.get_current_frame();
-				if (cur_frame.image_load_complete)
-					this.toggle_per_frame_annotation();
-			}
+				if (cur_frame.image_load_complete && category_name != "") {
+					this.set_per_frame_category_annotation(key_pressed);
+				}
 
-		} else if (event.keyCode == 8) {    // delete/bksp key
+			} else if (event.keyCode == 32) { // space
+				
+				// space bar clears categorical annotations
+				var cur_frame = this.get_current_frame();
+				if (cur_frame.image_load_complete) {
+					this.set_per_frame_category_annotation(Annotation.INVALID_CATEGORY);
+				}
+			}
+		}
+
+		if (event.keyCode == 8) {            // delete/bksp key
 			this.delete_annotation();
 
 		} else if (event.keyCode == 90) {   // 'z' key (zoom mode)
@@ -705,14 +743,7 @@ class ImageLabeler {
 		this.in_progress_points.push(image_cursor_pt);		
 		console.log("KLabeler: Click at (" + this.cursorx + ", " + this.cursory + "), image space=(" + image_cursor_pt.x + ", " + image_cursor_pt.y + "), point " + this.in_progress_points.length);
 
-		// this click completes a new per-frame annotation
-		if (this.is_annotation_mode_per_frame()) {
-
-			this.toggle_per_frame_annotation();
-			this.clear_in_progress_points();
-
-		// this click completes a new extreme point box annotation
-		} else if (this.is_annotation_mode_extreme_points_bbox() && this.in_progress_points.length == 4) {
+		if (this.is_annotation_mode_extreme_points_bbox() && this.in_progress_points.length == 4) {
 
 			// discard box if this set of four extreme points is not a valid set of extreme points
 			if (!BBox2D.validate_extreme_points(this.in_progress_points)) {
@@ -770,6 +801,18 @@ class ImageLabeler {
 	// (called by driving applications)
 	/////////////////////////////////////////////////////////////////////////////////////////////
 
+	set_focus() {
+		this.main_canvas_el.focus();
+	}
+
+	set_background_color(color) {
+		this.color_background = color;
+	}
+
+	set_retain_zoom(value) {
+		this.retain_zoom = value;
+	}
+
 	clear_boxes() {
 		var cur_frame = this.get_current_frame();
 		var num_annotations = cur_frame.data.annotations.length;
@@ -787,6 +830,21 @@ class ImageLabeler {
 		this.render();
 	}
 
+	set_categories(categories) {
+
+		// modifies key bindings in per-frame categorical mode
+		this.category_to_name = Array(10).fill("");
+		this.category_to_color = Array(10).fill("");
+
+		Object.entries(categories).forEach( entry => {
+			var category_name = entry[0];
+			var category_key = entry[1].idx;
+			var category_color = entry[1].color;
+			this.category_to_name[category_key] = category_name;
+			this.category_to_color[category_key] = category_color;
+		});
+	}
+
 	set_extreme_points_viz(status) {
 		this.show_extreme_points = status;
 		this.render();
@@ -794,6 +852,11 @@ class ImageLabeler {
 
 	set_play_audio(toggle) {
 		this.play_audio = toggle;
+	}
+
+	set_crosshairs_viz(value) {
+		this.show_crosshairs = value;
+		this.render();
 	}
 
 	set_letterbox(toggle) {
@@ -816,7 +879,6 @@ class ImageLabeler {
 		this.clear_in_progress_points();
 		this.clear_zoom_corner_points();
 		this.render();
-		console.log("KLabeler: set current frame num to " + this.current_frame_index);
 	}
 
 	make_image_load_handler(x) {
@@ -867,6 +929,9 @@ class ImageLabeler {
 		this.main_canvas_el.addEventListener("click", this.handle_canvas_click, false);
 		this.main_canvas_el.addEventListener("mouseover", this.handle_canvas_mouseover, false);
 		this.main_canvas_el.addEventListener("mouseout", this.handle_canvas_mouseout, false);
+
+		this.main_canvas_el.addEventListener("keydown", this.handle_keydown, false);
+		this.main_canvas_el.addEventListener("keyup", this.handle_keyup, false);
 
 		this.audio_click_sound = new Audio("media/click_sound2.mp3");
 		this.audio_box_done_sound = new Audio("media/click_sound3.mp3");
