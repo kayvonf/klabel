@@ -1,0 +1,77 @@
+<html>
+<head>
+	
+
+
+<style>
+
+	body {
+		font-family: Open sans, Arial, sans-serif;
+		font-size: 10pt;
+		font-weight: 400;
+		color: #606060;
+		background: #ffffff;
+	}
+
+	body a {
+		color: #808080;
+	}
+
+	body a:hover {
+		text-decoration: underline;
+	}
+
+	img {
+		transition: all 0.2s ease;
+	}
+
+	/*
+	a {
+		transition: all 0.4s ease;
+	}
+	*/
+
+	a:focus {
+	  outline: none;
+	}
+</style>
+
+<script>
+
+	// https://css-tricks.com/having-a-little-fun-with-custom-focus-styles/
+	function handle_mouseover(x) {
+		var id = "item" + x;
+		var el = document.getElementById(id);
+		el.focus();
+
+		var img_id = "img" + x;
+		var img_el = document.getElementById(img_id);
+		img_el.style.boxShadow = "0px 0px 3px 2px #c08080";
+	}
+
+	function handle_mouseout(x) {
+		var img_id = "img" + x;
+		var img_el = document.getElementById(img_id);
+		img_el.style.boxShadow = "";
+	}
+
+	function handle_keydown() {
+		console.log("key down")
+	}
+
+</script>
+
+</head>
+
+<body>
+
+<p>
+<a id="item1" href="#" tabindex="0" onkeydown="handle_keydown()"><img id="img1" onmouseover="handle_mouseover(1)" onmouseout="handle_mouseout(1)"width="200" height="200" src=" lfviz_assets/val_imgs/video9_frame283005-0.jpg" /></a>
+<a id="item2" href="#" tabindex="0"><img id="img2" onmouseover="handle_mouseover(2)" onmouseout="handle_mouseout(2)" width="200" height="200" src="lfviz_assets/val_imgs/video9_frame283005-0.jpg" /></a>
+<a id="item3" href="#" tabindex="0"><img id="img3" onmouseover="handle_mouseover(3)" onmouseout="handle_mouseout(3)" width="200" height="200" src="lfviz_assets/val_imgs/video9_frame283005-0.jpg" /></a>
+<a id="item4" href="#" tabindex="0"><img id="img4" onmouseover="handle_mouseover(4)" onmouseout="handle_mouseout(4)" width="200" height="200" src="lfviz_assets/val_imgs/video9_frame283005-0.jpg" /></a>
+</p>
+
+
+</body>
+</html>

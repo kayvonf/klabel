@@ -1,0 +1,189 @@
+<html>
+<head>
+	
+
+
+<style>
+
+	body {
+		font-family: Open sans, Arial, sans-serif;
+		font-size: 10pt;
+		font-weight: 400;
+		color: #606060;
+		background: #ffffff;
+	}
+
+	body a {
+		color: #808080;
+	}
+
+	body a:hover {
+		text-decoration: underline;
+	}
+
+	button {
+	  background-color: #a2a2a2; 
+	  border: none;
+	  color: white;
+	  padding: 2px 6px;
+	  border-radius: 3px;
+ 	  /*font-family: Open sans, Arial, sans-serif; */
+	  text-align: center;
+	  display: inline-block;
+	}
+
+	button:hover {
+		background-color: #808080;
+	}
+
+</style>
+
+<script src="js/kmath.js"></script>
+<script src="js/klabel.js"></script>
+
+<script>
+
+	var labeler = new ImageLabeler;
+
+	var task_id;
+	var num_datapoints = 0;
+	var description = "";
+	var image_urls = [];
+	var model_scores = [];
+	var user_labels = [];
+
+ // fetch documentation
+ // https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch
+
+	function handle_start_labeling_task() {
+
+		var task_input_el = document.getElementById("task_id_box");
+		var labeler_name_input_el = document.getElementById("labeler_id_box");
+
+		var task_id = task_input_el.value;
+		var labeler_id = labeler_name_input_el.value;
+
+		if (labeler_id.length == 0) {
+			alert("Please enter a labeler name");
+			return false;
+		}
+
+		// now need to go get the data
+
+		var fetch_task_url = "/labeling_api/get_task?" + new URLSearchParams({taskid: task_id});
+
+		console.log(task_id);
+
+		fetch(fetch_task_url)
+ 			.then(function(response) {
+ 				if (response.status !== 200) {
+ 					console.log("problem: " + response.status);
+ 				}
+ 				return response.json();
+			})
+			.then(function(task_info) {
+
+				console.log(task_info);
+
+				task_id = task_info.task_id;
+				description = task_info.description;				
+				datapoint_urls = task_info.datapoint_urls;
+				datapoint_urls = datapoint_urls.slice(0,10);
+				num_datapoints = datapoint_urls.length;
+
+				console.log("Task description: " + description);
+				console.log("Num datapoints: " + num_datapoints);
+
+				var image_data = [];
+				for (var i=0; i<num_datapoints; i++) {
+					var data = new ImageData;
+					data.source_url = datapoint_urls[i];
+					image_data.push(data);
+				}
+				
+				labeler.load_image_stack(image_data);
+
+				var task_info_div = document.getElementById("task_info_div");
+
+				var str = "";
+				str += "<div>Task: " + description + "</div>"
+				task_info_div.innerHTML = str;
+
+				var main_div = document.getElementById("main_div");
+				main_div.style.visibility = "visible";
+
+			})
+ 			.catch(function(err) {
+ 				console.log('Error fetching task info: ', err);
+ 			});
+
+	}
+
+
+
+	// https://css-tricks.com/having-a-little-fun-with-custom-focus-styles/
+	function handle_mouseover(x) {
+		var id = "item" + x;
+		var el = document.getElementById(id);
+		el.focus();
+
+		var img_id = "img" + x;
+		var img_el = document.getElementById(img_id);
+		img_el.style.boxShadow = "0px 0px 3px 2px #c08080";
+	}
+
+	function handle_mouseout(x) {
+		var img_id = "img" + x;
+		var img_el = document.getElementById(img_id);
+		img_el.style.boxShadow = "";
+	}
+
+	function handle_keydown() {
+		console.log("key down")
+	}
+
+	function handle_onload() {
+
+		const url_params = new URLSearchParams(window.location.search);
+		if (url_params.has("taskid")) {
+    		var el = document.getElementById("task_id_box");
+    		el.value = url_params.get("taskid");
+		}
+		if (url_params.has("labeler")) {
+    		var el = document.getElementById("labeler_id_box");
+    		el.value = url_params.get("labeler");
+		}
+
+		var main_canvas = document.getElementById("main_canvas");
+
+		labeler.init(main_canvas);
+		labeler.set_annotation_mode(Annotation.ANNOTATION_MODE_PER_FRAME);
+		labeler.set_play_audio(false);
+		labeler.set_letterbox(true);
+	}
+
+</script>
+
+</head>
+
+<body onload="handle_onload()">
+
+<p>
+	Task: <input type="text" id="task_id_box" style="width: 300px;" onchange="" />
+	Labeler: <input type="text" id="labeler_id_box" style="width: 250px" onchange="" />
+	<button id="get_data_button" type="button" onclick="handle_start_labeling_task()">Get Task</button>
+</p>
+
+<div id="main_div" style="visibility: hidden;">
+<p>
+<div>
+	<canvas id="main_canvas" width="960" height="500" style="border: 1px solid #c0c0c0;" ></canvas>
+</div>
+<p>
+<div id="task_info_div"></div>	
+</p>
+</div>
+
+
+</body>
+</html>
