@@ -277,7 +277,7 @@ class ImageLabeler {
 
 			if (selected != -1) {
 				cur_frame.data.annotations.splice(selected, 1);
-				console.log("KLabeler: Deleted box " + selected);
+				//console.log("KLabeler: Deleted box " + selected);
 			}
 		}
 
@@ -297,7 +297,7 @@ class ImageLabeler {
 
 		if (cat_idx != Annotation.INVALID_CATEGORY) {
 			cur_frame.data.annotations.push(new PerFrameAnnotation(cat_idx));
-			console.log("KLabeler: set per-frame annotation: " + this.category_to_name[cat_idx]);
+			//console.log("KLabeler: set per-frame annotation: " + this.category_to_name[cat_idx]);
 		}
 	}
 
@@ -747,7 +747,7 @@ class ImageLabeler {
 		}
 
 		this.in_progress_points.push(image_cursor_pt);		
-		console.log("KLabeler: Click at (" + this.cursorx + ", " + this.cursory + "), image space=(" + image_cursor_pt.x + ", " + image_cursor_pt.y + "), point " + this.in_progress_points.length);
+		//console.log("KLabeler: Click at (" + this.cursorx + ", " + this.cursory + "), image space=(" + image_cursor_pt.x + ", " + image_cursor_pt.y + "), point " + this.in_progress_points.length);
 
 		if (this.is_annotation_mode_extreme_points_bbox() && this.in_progress_points.length == 4) {
 
@@ -762,7 +762,7 @@ class ImageLabeler {
 			var new_annotation = new ExtremeBoxAnnnotation(this.in_progress_points);
 			cur_frame.data.annotations.push(new_annotation);
 
-			console.log("KLabeler: New box: x=[" + new_annotation.bbox.bmin.x + ", " + new_annotation.bbox.bmax.x + "], y=[" + new_annotation.bbox.bmin.y + ", " + new_annotation.bbox.bmax.y + "]");
+			//console.log("KLabeler: New box: x=[" + new_annotation.bbox.bmin.x + ", " + new_annotation.bbox.bmax.x + "], y=[" + new_annotation.bbox.bmin.y + ", " + new_annotation.bbox.bmax.y + "]");
 
 			this.clear_in_progress_points();
 
@@ -781,7 +781,7 @@ class ImageLabeler {
 			var new_annotation = new TwoPointBoxAnnotation(this.in_progress_points);
 			cur_frame.data.annotations.push(new_annotation);
 
-			console.log("KLabeler: New box: x=[" + new_annotation.bbox.bmin.x + ", " + new_annotation.bbox.bmax.y + "], y=[" + new_annotation.bbox.bmin.y + ", " + new_annotation.bbox.bmax.y + "]");
+			//console.log("KLabeler: New box: x=[" + new_annotation.bbox.bmin.x + ", " + new_annotation.bbox.bmax.y + "], y=[" + new_annotation.bbox.bmin.y + ", " + new_annotation.bbox.bmax.y + "]");
 
 			this.clear_in_progress_points();
 
@@ -791,7 +791,7 @@ class ImageLabeler {
 			var new_annotation = new PointAnnotation(this.in_progress_points[0]);
 			cur_frame.data.annotations.push(new_annotation);
 
-			console.log("KLabeler: New point: (" + new_annotation.pt.x + ", " + new_annotation.pt.y + ")");
+			//console.log("KLabeler: New point: (" + new_annotation.pt.x + ", " + new_annotation.pt.y + ")");
 
 			this.clear_in_progress_points();
 		}
@@ -844,7 +844,7 @@ class ImageLabeler {
 
 		Object.entries(categories).forEach( entry => {
 			var category_name = entry[0];
-			var category_key = entry[1].idx;
+			var category_key = entry[1].value;
 			var category_color = entry[1].color;
 			this.category_to_name[category_key] = category_name;
 			this.category_to_color[category_key] = category_color;

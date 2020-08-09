@@ -27,7 +27,6 @@
 	  color: #ffffff;
 	  padding: 2px 6px;
 	  border-radius: 3px;
- 	  /*font-family: Open sans, Arial, sans-serif; */
 	  text-align: center;
 	  display: inline-block;
 	}
@@ -65,16 +64,12 @@
  // fetch documentation
  // https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch
 
- 	function number_to_html_emoji(x) {
- 		return "&#x3" + x + ";&#xFE0F;&#x20E3;"; 
- 	}
-
 	function handle_start_labeling_task() {
 
 		var task_input_el = document.getElementById("task_id_box");
 		var labeler_name_input_el = document.getElementById("labeler_id_box");
 
-		var task_id = task_input_el.value;
+		task_id = task_input_el.value;
 		var labeler_id = labeler_name_input_el.value;
 
 		if (labeler_id.length == 0) {
@@ -84,18 +79,18 @@
 
 		// now need to go get the data
 
-		var fetch_task_url = "/labeling_api/get_task?" + new URLSearchParams({taskid: task_id});
+		var fetch_task_url = "/labeling_api/get_task?" + new URLSearchParams({task_id: task_id});
 
 		console.log(task_id);
 
 		fetch(fetch_task_url)
- 			.then(function(response) {
+ 			.then(response => {
  				if (response.status !== 200) {
  					console.log("problem: " + response.status);
  				}
  				return response.json();
 			})
-			.then(function(task_info) {
+			.then(task_info => {
 
 				task_id = task_info.task_id;
 				description = task_info.description;				
@@ -116,7 +111,7 @@
 				}
 				
 
-				// fill in task information
+				// fill in task information in the UI
 
 				var task_info_div = document.getElementById("task_info_div");
 
@@ -129,7 +124,7 @@
 				// make the labeling UI visible
 				var entries = Array(10).fill("");
 				Object.entries(category_mapping).forEach( entry => {
-					var key_code = entry[1].idx;
+					var key_code = entry[1].value;
 					var category_name = entry[0];
 					entries[key_code] = category_name;
 				});
@@ -148,14 +143,63 @@
 				var main_div = document.getElementById("main_div");
 				main_div.style.visibility = "visible";
 
+				// setup klabeler widget
+
 				labeler.load_image_stack(image_data);
 				labeler.set_categories(category_mapping);
 				labeler.set_focus();
 
 			})
- 			.catch(function(err) {
+ 			.catch(err => {
  				console.log('Error fetching task info: ', err);
  			});
+
+	}
+
+	function handle_save_results() {
+
+		var labeler_name_input_el = document.getElementById("labeler_id_box");
+		var labeler_name = labeler_name_input_el.value;
+
+		// the annotations from klabler
+		var klabel_annotations = labeler.get_annotations();
+		var labels = [];
+
+		klabel_annotations.forEach( img => {
+
+			if (img.annotations.length == 0 ||
+				img.annotations[0].type != Annotation.ANNOTATION_MODE_PER_FRAME_CATEGORY) {
+				labels.push(-1);
+			} else {
+				labels.push(img.annotations[0].value);
+			}
+		});
+
+		var labeling_results = {
+			task_id: task_id,
+			labeler_name: labeler_name,
+			labels: labels
+		};
+
+		console.log(labeling_results);
+
+		fetch('/labeling_api/store_labels', {
+			method: 'POST',
+			headers: {'Content-Type': 'application/json'},
+  			body: JSON.stringify(labeling_results),
+		})
+			.then(response => {
+	 			if (response.status !== 200) {
+	 				console.log("problem: " + response.status);
+	 			}
+	 			return response.json();
+			})
+			.then(data => {
+	  			console.log('Success:', data);
+			})
+			.catch(error => {
+	  			console.error('Error:', error);
+			});
 
 	}
 
@@ -164,9 +208,9 @@
 		status_div = document.getElementById("labeler_status_div")
 
 		const url_params = new URLSearchParams(window.location.search);
-		if (url_params.has("taskid")) {
+		if (url_params.has("task_id")) {
     		var el = document.getElementById("task_id_box");
-    		el.value = url_params.get("taskid");
+    		el.value = url_params.get("task_id");
 		}
 		if (url_params.has("labeler")) {
     		var el = document.getElementById("labeler_id_box");
@@ -204,6 +248,10 @@
 <div id="labeler_help_div" style="padding-top: 6px;"></div>
 <div id="labeler_status_div" style="padding-top: 6px;"></div>
 </div>
+</p>
+
+<p>
+	<button id="post_results_button" type="button" onclick="handle_save_results()">Save Results</button>
 </p>
 
 </body>
