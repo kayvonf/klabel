@@ -203,6 +203,14 @@
 
 	}
 
+	function handle_annotation_changed() {
+		console.log("Annotation changed");
+	}
+
+	function handle_frame_changed(frame_num) {
+		console.log("Frame changed to " + frame_num);
+	}
+
 	function handle_onload() {
 
 		status_div = document.getElementById("labeler_status_div")
@@ -220,6 +228,8 @@
 		var main_canvas = document.getElementById("main_canvas");
 
 		labeler.init(main_canvas);
+		labeler.set_frame_changed_listener(handle_frame_changed);
+		labeler.set_annotation_changed_listener(handle_annotation_changed);
 		labeler.set_annotation_mode(Annotation.ANNOTATION_MODE_PER_FRAME_CATEGORY);
 		labeler.set_play_audio(false);
 		labeler.set_letterbox(true);

@@ -82,6 +82,9 @@ class ImageLabeler {
 		this.cursorx = Number.MIN_SAFE_INTEGER;
 		this.cursory = Number.MIN_SAFE_INTEGER;
 
+		this.frame_changed_callback = null;
+		this.annotation_changed_callback = null;
+
 		// state for UI related to zooming
 		this.zoom_key_down = false;
 		this.zoom_corner_points = [];
@@ -259,6 +262,35 @@ class ImageLabeler {
 		this.zoom_corner_points = [];
 	}
 
+	// FIXME(kayvonf): unify this with add_annotation() just like there's a common
+	// interface for delete_annotation()
+	set_per_frame_category_annotation(cat_idx) {
+
+		var cur_frame = this.get_current_frame();
+
+		// if a per-frame annotation exists, remove it
+		for (var i=0; i<cur_frame.data.annotations.length; i++) {
+			if (cur_frame.data.annotations[i].type == Annotation.ANNOTATION_MODE_PER_FRAME_CATEGORY) {
+				cur_frame.data.annotations.splice(i, 1);
+			}
+		}
+
+		if (cat_idx != Annotation.INVALID_CATEGORY) {
+			cur_frame.data.annotations.push(new PerFrameAnnotation(cat_idx));
+			//console.log("KLabeler: set per-frame annotation: " + this.category_to_name[cat_idx]);
+		}
+
+		if (this.annotation_changed_callback != null)
+			this.annotation_changed_callback();
+	}
+
+	add_annotation(ann) {
+		var cur_frame = this.get_current_frame()
+		cur_frame.data.annotations.push(ann);
+		if (this.annotation_changed_callback != null)
+			this.annotation_changed_callback();
+	}
+
 	delete_annotation() {
 
 		var cur_frame = this.get_current_frame();
@@ -278,27 +310,13 @@ class ImageLabeler {
 			if (selected != -1) {
 				cur_frame.data.annotations.splice(selected, 1);
 				//console.log("KLabeler: Deleted box " + selected);
+
+				if (this.annotation_changed_callback != null)
+					this.annotation_changed_callback();
 			}
 		}
 
 		this.render();
-	}
-
-	set_per_frame_category_annotation(cat_idx) {
-
-		var cur_frame = this.get_current_frame();
-
-		// if a per-frame annotation exists, remove it
-		for (var i=0; i<cur_frame.data.annotations.length; i++) {
-			if (cur_frame.data.annotations[i].type == Annotation.ANNOTATION_MODE_PER_FRAME_CATEGORY) {
-				cur_frame.data.annotations.splice(i, 1);
-			}
-		}
-
-		if (cat_idx != Annotation.INVALID_CATEGORY) {
-			cur_frame.data.annotations.push(new PerFrameAnnotation(cat_idx));
-			//console.log("KLabeler: set per-frame annotation: " + this.category_to_name[cat_idx]);
-		}
 	}
 
 	play_click_audio() {
@@ -760,8 +778,7 @@ class ImageLabeler {
 			}
 
 			var new_annotation = new ExtremeBoxAnnnotation(this.in_progress_points);
-			cur_frame.data.annotations.push(new_annotation);
-
+			this.add_annotation(new_annotation);
 			//console.log("KLabeler: New box: x=[" + new_annotation.bbox.bmin.x + ", " + new_annotation.bbox.bmax.x + "], y=[" + new_annotation.bbox.bmin.y + ", " + new_annotation.bbox.bmax.y + "]");
 
 			this.clear_in_progress_points();
@@ -779,8 +796,7 @@ class ImageLabeler {
 			}
 
 			var new_annotation = new TwoPointBoxAnnotation(this.in_progress_points);
-			cur_frame.data.annotations.push(new_annotation);
-
+			this.add_annotation(new_annotation);
 			//console.log("KLabeler: New box: x=[" + new_annotation.bbox.bmin.x + ", " + new_annotation.bbox.bmax.y + "], y=[" + new_annotation.bbox.bmin.y + ", " + new_annotation.bbox.bmax.y + "]");
 
 			this.clear_in_progress_points();
@@ -789,8 +805,7 @@ class ImageLabeler {
 		} else if (this.is_annotation_mode_point()) {
 
 			var new_annotation = new PointAnnotation(this.in_progress_points[0]);
-			cur_frame.data.annotations.push(new_annotation);
-
+			this.add_annotation(new_annotation);
 			//console.log("KLabeler: New point: (" + new_annotation.pt.x + ", " + new_annotation.pt.y + ")");
 
 			this.clear_in_progress_points();
@@ -885,6 +900,17 @@ class ImageLabeler {
 		this.clear_in_progress_points();
 		this.clear_zoom_corner_points();
 		this.render();
+
+		if (this.frame_changed_callback != null)
+			this.frame_changed_callback(this.current_frame_index);
+	}
+
+	set_frame_changed_listener(func) {
+		this.frame_changed_callback = func;
+	}
+
+	set_annotation_changed_listener(func) {
+		this.annotation_changed_callback = func;
 	}
 
 	make_image_load_handler(x) {
