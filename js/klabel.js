@@ -5,14 +5,9 @@
 /*
 	This file contains the implementation of KLabel.
 
-
 	TODO list:
-	* add support for per-frame categorial annotations (currently only supports binary)
 	* improve selection mechanism for boxes/points
 	* detect invalid extreme points as early as possible (before end of box)
-	* more intuitive handling of zoom view:
-	     -- don't draw annotations that fall outside the view (or clip boxes to view)
-	     -- don't allow creating of annotations outside the current view
 
 	LICENSES OF THINGS I USED:
 	* This is the "click1" sound:
@@ -155,7 +150,7 @@ class ImageLabeler {
 		var cur_frame = this.get_current_frame();
 
 		var visible_box = this.visible_image_region.scale(cur_frame.source_image.width, cur_frame.source_image.height);
-		var display_box = this.compute_display_box();
+		var display_box = this.compute_image_display_box();
 
 		// pixel space coordinates
 		var image_pixel_x = visible_box.bmin.x + visible_box.width * (pt.x - display_box.bmin.x) / display_box.width;
@@ -174,7 +169,7 @@ class ImageLabeler {
 		var cur_frame = this.get_current_frame();
 
 		var visible_box = this.visible_image_region.scale(cur_frame.source_image.width, cur_frame.source_image.height);
-		var display_box = this.compute_display_box();
+		var display_box = this.compute_image_display_box();
 
 		// pixel space coordinates of pt
 		var image_pixel_x = pt.x * cur_frame.source_image.width;
@@ -211,8 +206,11 @@ class ImageLabeler {
 		return this.annotation_mode == Annotation.ANNOTATION_MODE_EXTREME_POINTS_BBOX;
 	}
 
-	// returns the index of the annotation that is the "selected annotation" given
+	// Returns the index of the annotation that is the "selected annotation" given
 	// the current mouse position
+	// Per-frame annotations cannot be "selected" since there is only one per frame.
+	// The main purpose of box/point annotation selection is to delete an annotation
+	// and a per-frame annotation can be changed/deleted in a single keypress.  
 	get_selected_annotation() {
 
 		var selected = -1;
@@ -224,7 +222,10 @@ class ImageLabeler {
 
 		var cur_frame = this.get_current_frame();
 
-		// select the smallest (area) annotation the cursor is within
+		// the cursor may fall within multiple boxes. Select the smallest (area) annotation
+		// the cursor falls within.  The decision prevents a big box from preventing the selection of 
+		// small ones.  It is possible that many small boxes could in agregate entirely cover a
+		// big box, preventing the big box's selection, but this is far less common.
 		var smallest_area = Number.MAX_VALUE;
 		for (var i=0; i<cur_frame.data.annotations.length; i++) {
 			
@@ -319,7 +320,7 @@ class ImageLabeler {
 	}
 
 	// computes the canvas-space bounding box of the rendered image
-	compute_display_box() {
+	compute_image_display_box() {
 
 		// visible region of the image in the image's pixel space
 
@@ -449,7 +450,7 @@ class ImageLabeler {
 		if (cur_frame.image_load_complete) {
 
 			var visible_box = this.visible_image_region.scale(cur_frame.source_image.width, cur_frame.source_image.height);
-			var display_box = this.compute_display_box();
+			var display_box = this.compute_image_display_box();
 
 			ctx.drawImage(cur_frame.source_image,
 				visible_box.bmin.x, visible_box.bmin.y, visible_box.width, visible_box.height,
@@ -559,9 +560,10 @@ class ImageLabeler {
 				}	
 			} else if (ann.type == Annotation.ANNOTATION_MODE_PER_FRAME_CATEGORY) {
 
-				// draw the annotation in a box at the top of the screen
-				ctx.fillStyle = this.category_to_color[ann.value]; 
-				ctx.fillRect(0, this.main_canvas_el.height - 25, this.main_canvas_el.width, 25);
+				// draw box around the display in the appropriate color to indicate the per-frame label
+				ctx.strokeStyle = this.category_to_color[ann.value];
+				ctx.lineWidth = 24;
+				ctx.strokeRect(12, 12, this.main_canvas_el.width-24, this.main_canvas_el.height-22);
 
 				ctx.fillStyle = this.color_category_text_fill;
 				ctx.font = this.category_text_font; 
@@ -943,6 +945,7 @@ class ImageLabeler {
 		// reset the viewer sequence
 		this.current_frame_index = 0;
 		this.clear_in_progress_points();
+		this.clear_zoom_corner_points();
 		this.visible_image_region = new BBox2D(0.0, 0.0, 1.0, 1.0);
 
 	}
