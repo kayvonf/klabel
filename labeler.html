@@ -97,7 +97,7 @@
 				category_mapping = task_info.categories;
 
 				datapoint_urls = task_info.datapoint_urls;
-				datapoint_urls = datapoint_urls.slice(0,10);
+				//datapoint_urls = datapoint_urls.slice(0,10);
 				num_datapoints = datapoint_urls.length;
 
 				console.log("Task description: " + description);
@@ -238,6 +238,7 @@
 	Task: <input type="text" id="task_id_box" style="width: 300px;" onchange="" />
 	Labeler: <input type="text" id="labeler_id_box" style="width: 250px" onchange="" />
 	<button id="get_data_button" type="button" onclick="handle_start_labeling_task()">Get Task</button>
+	<button id="post_results_button" type="button" onclick="handle_save_results()">Save Results</button>
 </div>
 
 <div id="main_div" style="visibility: hidden;">
@@ -248,10 +249,6 @@
 <div id="labeler_help_div" style="padding-top: 6px;"></div>
 <div id="labeler_status_div" style="padding-top: 6px;"></div>
 </div>
-</p>
-
-<p>
-	<button id="post_results_button" type="button" onclick="handle_save_results()">Save Results</button>
 </p>
 
 </body>
