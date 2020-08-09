@@ -20,7 +20,7 @@
    * See the example configuration file in [config_examples/lfviz_config.json](config_examples/lfviz_config.json).
 4. Open `lfviz.html` in a browser. Set the query string parameter `lfviz.html?config=<MYCONFIG>` to load your WeakDB data dump using lfviz.
 
-## Getting Started with a New Labeling Session
+## Getting Started with a New Data Labeling Session
 
 1. Create the directory `labeling_results/` in the top level of your web tree.
 2. Create a labeling task and place the task description `.json` file in `labeling_results/`.
