@@ -262,11 +262,23 @@ class ImageLabeler {
 	delete_annotation() {
 
 		var cur_frame = this.get_current_frame();
-		var selected = this.get_selected_annotation();
 
-		if (selected != -1) {
-			cur_frame.data.annotations.splice(selected, 1);
-			console.log("KLabeler: Deleted box " + selected);
+		// handle per-frame annotations a little differently since they cannot be selected
+		// just delete the annotation on the frame is the labeler is in per-frame annotation mode
+		if (this.is_annotation_mode_per_frame_category()) {
+
+			if (cur_frame.image_load_complete)
+				this.set_per_frame_category_annotation(Annotation.INVALID_CATEGORY);
+
+		// for all other annotations, the user must select them to delete them
+		} else {
+
+			var selected = this.get_selected_annotation();
+
+			if (selected != -1) {
+				cur_frame.data.annotations.splice(selected, 1);
+				console.log("KLabeler: Deleted box " + selected);
+			}
 		}
 
 		this.render();
@@ -692,14 +704,6 @@ class ImageLabeler {
 				var cur_frame = this.get_current_frame();
 				if (cur_frame.image_load_complete && category_name != "") {
 					this.set_per_frame_category_annotation(key_pressed);
-				}
-
-			} else if (event.keyCode == 32) { // space
-				
-				// space bar clears categorical annotations
-				var cur_frame = this.get_current_frame();
-				if (cur_frame.image_load_complete) {
-					this.set_per_frame_category_annotation(Annotation.INVALID_CATEGORY);
 				}
 			}
 		}
