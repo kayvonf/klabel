@@ -89,6 +89,41 @@ class LabelingTask:
 		else:
 			self.labeler_results[labeler_name] = { "labeling_times" : labeling_times}
 
+	def print_stats(self):
+
+		num_labels = 0
+		for cat in self.labeler_results["kayvonf"]["labels"]:
+			if cat != -1:
+				num_labels = num_labels + 1
+
+		print("Number of labeled datapoints: %d" % num_labels)
+
+		min_time = 100000.0
+		min_index = -1
+		max_time = -1000000.0
+		min_index = -1
+		avg_time = 0.0
+		count = 0
+		for idx in range(len(self.labeler_results["kayvonf"]["labeling_times"])):
+			if idx == 0:
+				continue
+
+			time = self.labeler_results["kayvonf"]["labeling_times"][idx]
+			if time > 0.0:
+				avg_time = avg_time + time
+				count = count + 1
+				if time > max_time:
+					max_time = time
+					max_index = idx
+				if time < min_time:
+					min_time = time
+					min_index = idx
+
+		avg_time = avg_time / count
+		print("min: %.4f, max: %.4f, avg: %.4f   (count: %d)" % (min_time / 1000.0, max_time / 1000.0, avg_time / 1000.0, count))
+		print("min index: %d" % min_index)
+		print("max index: %d" % max_index)
+
 	def to_dict(self):
 		task_info = {
 			"task_id" : self.task_id,
