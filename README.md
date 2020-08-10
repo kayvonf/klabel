@@ -22,8 +22,9 @@
 
 ## Getting Started with a New Data Labeling Session
 
-1. Create the directory `labeling_results/` in the top level of your web tree.
+1. Create the directory `labeling_results/` in the top level of your web tree.  `server.py` will look for labeling task definitions at this location.
 2. Create a labeling task and place the task description `.json` file in `labeling_results/`.
-   * See [weakdb/lvis_labeling_task.py](weakdb/lvis_labeling_task.py) for an example of how to create a labeling task for a category in the VLIS val set.
-3. Open `labeling.html`.  You can type in the task id in the text entry box, or for convenience stick both the task id and the labeler name into url parameters (i.e. `labeling.html?task_id=<TASK_ID>&labeler=<LABELER_NAME>`)
-4. Label away!  Results will be stored back in the labeling task's json file.
+   * See [weakdb/lvis_labeling_task.py](weakdb/lvis_labeling_task.py) for an example of how to create a labeling task for a category in the VLIS val set. It amounts to creating an instance of the [LabelingTask](weakdb/labelingtask.py) python class.
+3. Open `labeling.html`.  Type in the task id in the text entry box, type in your name, and label away! The server just updates the task description json file on disk. 
+   * Results are stored back to the server every 10 annotations, so accidentally closing the browser window will not lose your labels.
+4. For convenience (so you don't have to type them in yourself) stick both the task id and the labeler name into url parameters (i.e. `labeling.html?task_id=<TASK_ID>&labeler=<LABELER_NAME>`)
