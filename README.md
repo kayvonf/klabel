@@ -5,7 +5,7 @@
 
 # Getting Started
 
-[server.py](server.py) is a simple Flask server that you can run on your local box for development.  For LFViz, the server just serves static files.  For data labeling support does run meaningful logic. 
+[server.py](server.py) is a simple Flask server that you can run on your local box for development.  For LFViz, the server just serves static files.  However, for data labeling support, this server does run logic to process labeling results and store them. 
 
     export FLASK_APP=server.py
     flask run
