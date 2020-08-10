@@ -26,4 +26,4 @@
 2. Create a labeling task and place the task description `.json` file in `labeling_results/`.
    * See [weakdb/lvis_labeling_task.py](weakdb/lvis_labeling_task.py) for an example of how to create a labeling task for a category in the VLIS val set.
 3. Open `labeling.html`.  You can type in the task id in the text entry box, or for convenience stick both the task id and the labeler name into url parameters (i.e. `labeling.html?task_id=<TASK_ID>&labeler=<LABELER_NAME>`)
-4. Label away!  Results will be stored 
+4. Label away!  Results will be stored back in the labeling task's json file.
