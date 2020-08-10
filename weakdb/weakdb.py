@@ -58,7 +58,7 @@ class WeakDB:
 		self.prob_labels = []				# label model output (before extension)
 
 		self.extended_lf_matrix = []		# (num_train+num_val) x num_lf matrix (LF results after extension)
-		self.extended_prob_labels = []	    # label model output (after extension)
+		self.extended_prob_labels = []		# label model output (after extension)
 
 		# description of the datapoints (for introspection during debugging)
 		self.datapoint_type = WeakDB.DATAPOINT_TYPE_UNKNOWN
@@ -122,17 +122,37 @@ class WeakDB:
 
 	# similarity matrix should be (num_train + num_val) * num_train elements
 	# higher number is more similar
-	def set_similarity_matrix(self, similarity_matrix):
-		similarity_matrix = listify_numpy(similarity_matrix)
-		assert len(similarity_matrix) == ((self.num_train + self.num_val) * self.num_train)
-		self.sorted_dists = []
-		for row_idx in range(self.num_train + self.num_val):
-			row = similarity_matrix[row_idx*self.num_train : (row_idx+1)*self.num_train]
-			if row_idx < self.num_train:
-				self.sorted_dists.append(self.process_dists_row(row, query_idx=row_idx))
+	# if set_closest is True, set rankings to N closest; if set_sampled is True, set rankings to
+	#   sample of items; only one of (set_closest, set_sampled) can be True at a time
+	def set_similarity_matrix(self, similarity_matrix, set_closest = False, set_sampled = False):
+		assert(not (set_closest and set_sampled))
+		if is_numpy(similarity_matrix):
+			# this is already in matrix form
+			if len(similarity_matrix.shape) == 2:
+				assert(similarity_matrix.shape == (self.num_train + self.num_val, self.num_train))
 			else:
-				self.sorted_dists.append(self.process_dists_row(row))
+			    assert(len(similarity_matrix) == ((self.num_train + self.num_val) * self.num_train))
+			sim_matrix_numpy = similarity_matrix.reshape(
+				(self.num_train + self.num_val, self.num_train))
+		else:
+			assert len(similarity_matrix) == ((self.num_train + self.num_val) * self.num_train)
 		
+			sim_matrix_numpy = numpy.array(sim_matrix_numpy).reshape(
+				(self.num_train + self.num_val, self.num_train))
+		
+		numpy.fill_diagonal(sim_matrix_numpy, numpy.min(sim_matrix_numpy))
+		
+		# get the ranking
+		ranking = numpy.flip(numpy.argsort(sim_matrix_numpy, axis = 1), axis = 1)
+		
+		if set_closest:
+			self.sorted_dists = ranking[:, :WeakDB.CLOSEST_LIST_SIZE].tolist()
+		elif set_sampled:
+			sample_skip = max(1, int(len(self.num_train) / WeakDB.SAMPLE_LIST_SIZE))
+			self.sorted_dists = ranking[:, ::sample_skip].tolist()
+		else:
+			self.sorted_dists = ranking.tolist()
+
 	# path generation for output json files (these are the files lfviz expects to load)
 
 	def get_dump_info_json_filename(self, target_dir):
@@ -169,7 +189,7 @@ class WeakDB:
 	def get_linden_lf_threshold_pkl_filename(self, linden_src_dir):
 		filename = "%s_lf_thresholds.pkl" % self.dump_name
 		return os.path.join(linden_src_dir, filename)
-     
+
 	def get_linden_similarity_matrix_pkl_filename(self, linden_src_dir, split):
 		filename = "%s_%s_dists.pkl" % (self.dump_name, split)
 		return os.path.join(linden_src_dir, filename)
