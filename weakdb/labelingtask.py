@@ -72,13 +72,22 @@ class LabelingTask:
 		self.categories = categories
 
 	def add_labeler_results(self, labeler_name, labels):
-
 		assert len(labels) == self.get_num_datapoints()
 
-		canonical_name = labeler_name.lower()
+		# will replace prior results for the labeler if they exist
+		if labeler_name in self.labeler_results:	
+			self.labeler_results[labeler_name]["labels"] = labels
+		else:
+			self.labeler_results[labeler_name] = { "labels": labels}
+
+	def add_labeling_times(self, labeler_name, labeling_times):
+		assert len(labeling_times) == self.get_num_datapoints()
 
 		# will replace prior results for the labeler if they exist
-		self.labeler_results[canonical_name] = labels
+		if labeler_name in self.labeler_results:
+			self.labeler_results[labeler_name]["labeling_times"] = labeling_times
+		else:
+			self.labeler_results[labeler_name] = { "labeling_times" : labeling_times}
 
 	def to_dict(self):
 		task_info = {

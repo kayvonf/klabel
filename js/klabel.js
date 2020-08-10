@@ -61,6 +61,7 @@ class ImageData {
 	constructor() {
 		this.source_url = "";
 		this.annotations = [];
+		this.labeling_time = 0.0;
 	}
 }
 
@@ -82,6 +83,10 @@ class ImageLabeler {
 		this.cursorx = Number.MIN_SAFE_INTEGER;
 		this.cursory = Number.MIN_SAFE_INTEGER;
 
+		// timing labeler behavior
+		this.current_frame_start_time;
+
+		// event callbacks
 		this.frame_changed_callback = null;
 		this.annotation_changed_callback = null;
 
@@ -129,6 +134,11 @@ class ImageLabeler {
 		this.retain_zoom = true;
 		this.extreme_point_radius = 3;
 
+	}
+
+	update_labeling_time() {
+		this.get_current_frame().data.labeling_time += performance.now() - this.current_frame_start_time;
+		this.current_frame_start_time = performance.now();		
 	}
 
 	// Clamp the cursor to the image dimensions so that clicks,
@@ -672,6 +682,8 @@ class ImageLabeler {
 		if (event.keyCode == 37) {   // left arrow
 			if (this.current_frame_index > 0)
 				this.set_current_frame_num(this.current_frame_index-1);
+			else
+				this.update_labeling_time();
 
 			// reset the zoom
 			if (!this.retain_zoom) {
@@ -682,6 +694,8 @@ class ImageLabeler {
 		} else if (event.keyCode == 39) {  // right arrow
 			if (this.current_frame_index < this.frames.length-1)
 				this.set_current_frame_num(this.current_frame_index+1);
+			else
+				this.update_labeling_time();
 
 			// reset the zoom
 			if (!this.retain_zoom) {
@@ -896,6 +910,9 @@ class ImageLabeler {
 	}
 
 	set_current_frame_num(frame_num) {
+
+		this.update_labeling_time();
+
 		this.current_frame_index = frame_num;
 		this.clear_in_progress_points();
 		this.clear_zoom_corner_points();
@@ -937,13 +954,16 @@ class ImageLabeler {
 
 		// FIXME(kayvonf): extract to helper function
 		// reset the viewer sequence
-		this.current_frame_index = 0;
+		this.visible_image_region = new BBox2D(0.0, 0.0, 1.0, 1.0);
 		this.clear_in_progress_points();
 		this.clear_zoom_corner_points();
-		this.visible_image_region = new BBox2D(0.0, 0.0, 1.0, 1.0);
+		this.set_current_frame_num(0);
 	}
 
 	get_annotations() {
+
+		this.update_labeling_time();
+		
 		var results = [];
 		for (var i=0; i<this.frames.length; i++) {
 			results.push(this.frames[i].data);
@@ -973,10 +993,9 @@ class ImageLabeler {
 		
 		// FIXME(kayvonf): extract to helper function
 		// reset the viewer sequence
-		this.current_frame_index = 0;
+		this.visible_image_region = new BBox2D(0.0, 0.0, 1.0, 1.0);
 		this.clear_in_progress_points();
 		this.clear_zoom_corner_points();
-		this.visible_image_region = new BBox2D(0.0, 0.0, 1.0, 1.0);
-
+		this.set_current_frame_num(0);
 	}
 }

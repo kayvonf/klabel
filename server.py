@@ -60,7 +60,8 @@ def store_labels():
 
 	task_id = incoming_data["task_id"]
 	labeler_name = incoming_data["labeler_name"]
-	results = incoming_data["labels"]
+	labels = incoming_data["labels"]
+	labeling_times = incoming_data["labeling_times"]
 
 	filename = make_filename(task_id)
 
@@ -68,11 +69,13 @@ def store_labels():
 		task = LabelingTask()
 		task.load(filename)
 
-		if task.get_num_datapoints() != len(results):
+		# FIXME(kayvonf): shouldn't be a 404
+		if task.get_num_datapoints() != len(labels):
 			error_msg = "Incorrect number of datapoints: got %d, expected %d" % (len(results), task.get_num_datapoints())
 			abort(404, description=error_msg)
 
-		task.add_labeler_results(labeler_name, results)
+		task.add_labeler_results(labeler_name, labels)
+		task.add_labeling_times(labeler_name, labeling_times)
 		task.save(filename)
 
 	return jsonify("Success")

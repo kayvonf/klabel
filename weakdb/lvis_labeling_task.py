@@ -18,7 +18,7 @@ for f in glob.glob(os.path.join(IMAGE_DIR, "*.jpg")):
 	datapoints.append(f)
 
 task = LabelingTask()
-task.set_description("Label the VENDING MACHINE category in LVIS val set")
+task.set_description("Label the BEER BOTTLE category in LVIS val set")
 task.set_datapoints(datapoints)
 
 # In addition to positive/negative for the category at hand, I created two additional
@@ -35,10 +35,10 @@ task.set_datapoints(datapoints)
 # to the right side of the keyboard and give them the same yellow-ish color.
 
 task.set_category_mapping( {
-	"vending machine" : {"value" : 1, "color" : "rgba(103, 191, 92, .75)" },
+	"beer bottle"     : {"value" : 1, "color" : "rgba(103, 191, 92, .75)" },
 	"background"      : {"value" : 2, "color" : "rgba(237, 102, 93, .75)" },
 	"not sure"        : {"value" : 9, "color" : "rgba(255, 193, 86, .75)" }, 
-	"flag"            : {"value" : 0, "color" : "rgba(255, 193, 86, .75)" } })
+	"flagged"         : {"value" : 0, "color" : "rgba(255, 193, 86, .75)" } })
 
 # On my local box, I've configured the web server handling labeling requests to look
 # for tabeling tasks in /labeling_results, so place the json file for the task there 

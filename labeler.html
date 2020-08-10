@@ -1,7 +1,9 @@
+<!DOCTYPE html>
 <html>
 <head>
-	
-<meta charset="UTF-8">
+<title>Image Labeling</title>	
+
+<link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;700&display=swap" rel="stylesheet">
 
 <style>
 
@@ -21,6 +23,11 @@
 		text-decoration: underline;
 	}
 
+	body h3 {
+		font-size: 10pt;
+		color: #000000;
+	}
+
 	button {
 	  background-color: #a2a2a2; 
 	  border: none;
@@ -36,7 +43,7 @@
 	}
 
 	.category_help_item {
-		background-color: #b0b0b0;
+		background-color: #c0c0c0;
 		color: #ffffff;
 		border-radius: 4px;
 		padding: 2px 5px 2px 5px;
@@ -59,7 +66,10 @@
 	var model_scores = [];
 	var user_labels = [];
 
-	var status_div;
+	var labeler_stats_div;
+	var cursor_el;
+
+	var annotations_since_last_save = 0;
 
  // fetch documentation
  // https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch
@@ -70,9 +80,9 @@
 		var labeler_name_input_el = document.getElementById("labeler_id_box");
 
 		task_id = task_input_el.value;
-		var labeler_id = labeler_name_input_el.value;
+		var labeler_name = labeler_name_input_el.value.toLowerCase();
 
-		if (labeler_id.length == 0) {
+		if (labeler_name.length == 0) {
 			alert("Please enter a labeler name");
 			return false;
 		}
@@ -97,19 +107,41 @@
 				category_mapping = task_info.categories;
 
 				datapoint_urls = task_info.datapoint_urls;
-				//datapoint_urls = datapoint_urls.slice(0,10);
 				num_datapoints = datapoint_urls.length;
 
 				console.log("Task description: " + description);
 				console.log("Num datapoints: " + num_datapoints);
 
+				// check to see if existing labels for the current labeler exist
+				var existing_labels = null;
+				var existing_labeling_times = null;
+				Object.entries(task_info.labeler_results).forEach( entry => {
+					if (entry[0] == labeler_name) {
+
+						existing_labels = entry[1].labels;
+						console.log("Existing labels for " + labeler_name + " exist.");
+
+						if (entry[1].hasOwnProperty("labeling_times")) {
+							existing_labeling_times = entry[1].labeling_times;
+							console.log("Labeling times for " + labeler_name + " exist.");
+						}
+					}
+				});	
+
 				var image_data = [];
 				for (var i=0; i<num_datapoints; i++) {
 					var data = new ImageData;
 					data.source_url = datapoint_urls[i];
+
+					// populate with existing labels if they exist
+					if (existing_labels && existing_labels[i] != Annotation.INVALID_CATEGORY)
+						data.annotations.push(new PerFrameAnnotation(existing_labels[i]));
+					
+					if (existing_labeling_times)
+						data.labeling_time = existing_labeling_times[i];
+
 					image_data.push(data);
 				}
-				
 
 				// fill in task information in the UI
 
@@ -121,11 +153,12 @@
 
 				var labeler_help_div = document.getElementById("labeler_help_div");
 
-				// make the labeling UI visible
+				// update the keyboard help based on the category mappings
+
 				var entries = Array(10).fill("");
 				Object.entries(category_mapping).forEach( entry => {
-					var key_code = entry[1].value;
 					var category_name = entry[0];
+					var key_code = entry[1].value;
 					entries[key_code] = category_name;
 				});
 
@@ -140,6 +173,8 @@
 				}
 				labeler_help_div.innerHTML = help_str;
 
+				// make the labeling UI visible
+
 				var main_div = document.getElementById("main_div");
 				main_div.style.visibility = "visible";
 
@@ -149,11 +184,59 @@
 				labeler.set_categories(category_mapping);
 				labeler.set_focus();
 
+				// update the labeler stats
+
+				update_labeler_stats();
+
 			})
  			.catch(err => {
  				console.log('Error fetching task info: ', err);
  			});
 
+	}
+
+	function klabel_annotations_to_labels(klabel_annotations) {
+		var labels = [];
+		klabel_annotations.forEach( img => {
+			if (img.annotations.length == 0 ||
+				img.annotations[0].type != Annotation.ANNOTATION_MODE_PER_FRAME_CATEGORY) {
+				labels.push(-1);
+			} else {
+				labels.push(img.annotations[0].value);
+			}
+		});
+
+		return labels;
+	}
+
+	function update_labeler_stats() {
+
+		var labels = klabel_annotations_to_labels(labeler.get_annotations());
+		var label_counts = Array(10).fill(0);
+		labels.forEach( label => {
+			if (label != Annotation.INVALID_CATEGORY)
+				label_counts[label]++;
+		});
+
+		// FIXME(kayvonf): do this on init. Code duplication with keyboard help.
+		var category_names = Array(10).fill("");
+		Object.entries(category_mapping).forEach( entry => {
+			var category_name = entry[0];
+			var category_value = entry[1].value;
+			category_names[category_value] = category_name;
+		});
+
+		var str = "";
+		for (var i=0; i<10; i++) {
+			var idx = (i+1 < 10) ? i+1 : 0;
+			if (category_names[idx] != "") {
+				str += "<div style=\"padding-top: 2px;\">";
+				str += "<button type=\"button\" onclick=\"handle_goto_next_by_category(" + idx + ")\">Next</button> ";
+				str += category_names[idx] + ": " + label_counts[idx] + "</div>"
+			}
+		}
+
+		labeler_stats_div.innerHTML = str;
 	}
 
 	function handle_save_results() {
@@ -163,25 +246,21 @@
 
 		// the annotations from klabler
 		var klabel_annotations = labeler.get_annotations();
-		var labels = [];
+		var labels = klabel_annotations_to_labels(klabel_annotations);
 
+		var labeling_times = [];
 		klabel_annotations.forEach( img => {
-
-			if (img.annotations.length == 0 ||
-				img.annotations[0].type != Annotation.ANNOTATION_MODE_PER_FRAME_CATEGORY) {
-				labels.push(-1);
-			} else {
-				labels.push(img.annotations[0].value);
-			}
+			labeling_times.push(img.labeling_time);
 		});
 
 		var labeling_results = {
 			task_id: task_id,
 			labeler_name: labeler_name,
-			labels: labels
+			labels: labels,
+			labeling_times: labeling_times
 		};
 
-		console.log(labeling_results);
+		annotations_since_last_save = 0;
 
 		fetch('/labeling_api/store_labels', {
 			method: 'POST',
@@ -200,20 +279,60 @@
 			.catch(error => {
 	  			console.error('Error:', error);
 			});
-
 	}
 
 	function handle_annotation_changed() {
-		console.log("Annotation changed");
+		
+		update_labeler_stats();
+
+		annotations_since_last_save++;
+
+		// save every 10 annotations
+		if (annotations_since_last_save > 10)
+			handle_save_results();	
 	}
 
 	function handle_frame_changed(frame_num) {
-		console.log("Frame changed to " + frame_num);
+		cursor_el.innerHTML = "Image " + frame_num + " of " + num_datapoints;
+	}
+
+	function handle_goto_first() {
+		labeler.set_current_frame_num(0);
+	}
+
+	function handle_goto_last() {
+		labeler.set_current_frame_num(num_datapoints-1);		
+	}
+
+	function handle_goto_next_by_category(cat) {
+		var labels = klabel_annotations_to_labels(labeler.get_annotations());
+		var current_frame_num = labeler.get_current_frame_num();
+
+		// search from the current frame forward
+		for (var i=current_frame_num+1; i<num_datapoints; i++) {
+			if (labels[i] == cat) {
+				labeler.set_current_frame_num(i);
+				return;
+			}
+		}
+
+		// start back at the start and search up to the current frame num
+		for (var i=0; i<current_frame_num; i++) {
+			if (labels[i] == cat) {
+				labeler.set_current_frame_num(i);	
+				return;
+			}
+		}
+	}
+
+	function handle_goto_next_unlabeled() {
+		handle_goto_next_by_category(Annotation.INVALID_CATEGORY);
 	}
 
 	function handle_onload() {
 
-		status_div = document.getElementById("labeler_status_div")
+		cursor_el = document.getElementById("cursor_el");
+		labeler_stats_div = document.getElementById("labeler_stats_div");
 
 		const url_params = new URLSearchParams(window.location.search);
 		if (url_params.has("task_id")) {
@@ -256,8 +375,15 @@
 <div>
 	<canvas id="main_canvas" width="960" height="500" tabindex="0" style="border: 1px solid #c0c0c0;" ></canvas>
 </div>
+<div style="padding-top: 6px;">
+	<span id="cursor_el" style="width: 100px;"></span>
+    <button id="get_data_button" type="button" onclick="handle_goto_first()">First</button>
+    <button id="get_data_button" type="button" onclick="handle_goto_next_unlabeled()">Next Unlabeled</button>
+	<button id="post_results_button" type="button" onclick="handle_goto_last()">Last</button>
+</div>
 <div id="labeler_help_div" style="padding-top: 6px;"></div>
-<div id="labeler_status_div" style="padding-top: 6px;"></div>
+<h3>Label Counts</h3>
+<div id="labeler_stats_div"></div>
 </div>
 </p>
 
