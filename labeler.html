@@ -1,7 +1,9 @@
+<!DOCTYPE html>
 <html>
 <head>
-	
+<title>Image Labeling</title>	
 
+<link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;700&display=swap" rel="stylesheet">
 
 <style>
 
@@ -21,19 +23,31 @@
 		text-decoration: underline;
 	}
 
+	body h3 {
+		font-size: 10pt;
+		color: #000000;
+	}
+
 	button {
 	  background-color: #a2a2a2; 
 	  border: none;
-	  color: white;
+	  color: #ffffff;
 	  padding: 2px 6px;
 	  border-radius: 3px;
- 	  /*font-family: Open sans, Arial, sans-serif; */
 	  text-align: center;
 	  display: inline-block;
 	}
 
 	button:hover {
 		background-color: #808080;
+	}
+
+	.category_help_item {
+		background-color: #c0c0c0;
+		color: #ffffff;
+		border-radius: 4px;
+		padding: 2px 5px 2px 5px;
+		margin-right: 5px;
 	}
 
 </style>
@@ -52,6 +66,11 @@
 	var model_scores = [];
 	var user_labels = [];
 
+	var labeler_stats_div;
+	var cursor_el;
+
+	var annotations_since_last_save = 0;
+
  // fetch documentation
  // https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch
 
@@ -60,94 +79,265 @@
 		var task_input_el = document.getElementById("task_id_box");
 		var labeler_name_input_el = document.getElementById("labeler_id_box");
 
-		var task_id = task_input_el.value;
-		var labeler_id = labeler_name_input_el.value;
+		task_id = task_input_el.value;
+		var labeler_name = labeler_name_input_el.value.toLowerCase();
 
-		if (labeler_id.length == 0) {
+		if (labeler_name.length == 0) {
 			alert("Please enter a labeler name");
 			return false;
 		}
 
 		// now need to go get the data
 
-		var fetch_task_url = "/labeling_api/get_task?" + new URLSearchParams({taskid: task_id});
+		var fetch_task_url = "/labeling_api/get_task?" + new URLSearchParams({task_id: task_id});
 
 		console.log(task_id);
 
 		fetch(fetch_task_url)
- 			.then(function(response) {
+ 			.then(response => {
  				if (response.status !== 200) {
  					console.log("problem: " + response.status);
  				}
  				return response.json();
 			})
-			.then(function(task_info) {
-
-				console.log(task_info);
+			.then(task_info => {
 
 				task_id = task_info.task_id;
 				description = task_info.description;				
+				category_mapping = task_info.categories;
+
 				datapoint_urls = task_info.datapoint_urls;
-				datapoint_urls = datapoint_urls.slice(0,10);
 				num_datapoints = datapoint_urls.length;
 
 				console.log("Task description: " + description);
 				console.log("Num datapoints: " + num_datapoints);
 
+				// check to see if existing labels for the current labeler exist
+				var existing_labels = null;
+				var existing_labeling_times = null;
+				Object.entries(task_info.labeler_results).forEach( entry => {
+					if (entry[0] == labeler_name) {
+
+						existing_labels = entry[1].labels;
+						console.log("Existing labels for " + labeler_name + " exist.");
+
+						if (entry[1].hasOwnProperty("labeling_times")) {
+							existing_labeling_times = entry[1].labeling_times;
+							console.log("Labeling times for " + labeler_name + " exist.");
+						}
+					}
+				});	
+
 				var image_data = [];
 				for (var i=0; i<num_datapoints; i++) {
 					var data = new ImageData;
 					data.source_url = datapoint_urls[i];
+
+					// populate with existing labels if they exist
+					if (existing_labels && existing_labels[i] != Annotation.INVALID_CATEGORY)
+						data.annotations.push(new PerFrameAnnotation(existing_labels[i]));
+					
+					if (existing_labeling_times)
+						data.labeling_time = existing_labeling_times[i];
+
 					image_data.push(data);
 				}
-				
-				labeler.load_image_stack(image_data);
+
+				// fill in task information in the UI
 
 				var task_info_div = document.getElementById("task_info_div");
 
 				var str = "";
-				str += "<div>Task: " + description + "</div>"
+				str += "<div>" + description + "</div>"
 				task_info_div.innerHTML = str;
+
+				var labeler_help_div = document.getElementById("labeler_help_div");
+
+				// update the keyboard help based on the category mappings
+
+				var entries = Array(10).fill("");
+				Object.entries(category_mapping).forEach( entry => {
+					var category_name = entry[0];
+					var key_code = entry[1].value;
+					entries[key_code] = category_name;
+				});
+
+				var help_str = "Keyboard help: ";
+				for (var i=0; i<10; i++) {
+					var idx = (idx == 9) ? 0 : i+1;
+					if (entries[idx] != "") {
+						help_str += "<span class=\"category_help_item\">";
+						help_str += "" + idx + ": " + entries[idx];
+						help_str += "</span>";
+					}
+				}
+				labeler_help_div.innerHTML = help_str;
+
+				// make the labeling UI visible
 
 				var main_div = document.getElementById("main_div");
 				main_div.style.visibility = "visible";
 
+				// setup klabeler widget
+
+				labeler.load_image_stack(image_data);
+				labeler.set_categories(category_mapping);
+				labeler.set_focus();
+
+				// update the labeler stats
+
+				update_labeler_stats();
+
 			})
- 			.catch(function(err) {
+ 			.catch(err => {
  				console.log('Error fetching task info: ', err);
  			});
 
 	}
 
+	function klabel_annotations_to_labels(klabel_annotations) {
+		var labels = [];
+		klabel_annotations.forEach( img => {
+			if (img.annotations.length == 0 ||
+				img.annotations[0].type != Annotation.ANNOTATION_MODE_PER_FRAME_CATEGORY) {
+				labels.push(-1);
+			} else {
+				labels.push(img.annotations[0].value);
+			}
+		});
 
-
-	// https://css-tricks.com/having-a-little-fun-with-custom-focus-styles/
-	function handle_mouseover(x) {
-		var id = "item" + x;
-		var el = document.getElementById(id);
-		el.focus();
-
-		var img_id = "img" + x;
-		var img_el = document.getElementById(img_id);
-		img_el.style.boxShadow = "0px 0px 3px 2px #c08080";
+		return labels;
 	}
 
-	function handle_mouseout(x) {
-		var img_id = "img" + x;
-		var img_el = document.getElementById(img_id);
-		img_el.style.boxShadow = "";
+	function update_labeler_stats() {
+
+		var labels = klabel_annotations_to_labels(labeler.get_annotations());
+		var label_counts = Array(10).fill(0);
+		labels.forEach( label => {
+			if (label != Annotation.INVALID_CATEGORY)
+				label_counts[label]++;
+		});
+
+		// FIXME(kayvonf): do this on init. Code duplication with keyboard help.
+		var category_names = Array(10).fill("");
+		Object.entries(category_mapping).forEach( entry => {
+			var category_name = entry[0];
+			var category_value = entry[1].value;
+			category_names[category_value] = category_name;
+		});
+
+		var str = "";
+		for (var i=0; i<10; i++) {
+			var idx = (i+1 < 10) ? i+1 : 0;
+			if (category_names[idx] != "") {
+				str += "<div style=\"padding-top: 2px;\">";
+				str += "<button type=\"button\" onclick=\"handle_goto_next_by_category(" + idx + ")\">Next</button> ";
+				str += category_names[idx] + ": " + label_counts[idx] + "</div>"
+			}
+		}
+
+		labeler_stats_div.innerHTML = str;
 	}
 
-	function handle_keydown() {
-		console.log("key down")
+	function handle_save_results() {
+
+		var labeler_name_input_el = document.getElementById("labeler_id_box");
+		var labeler_name = labeler_name_input_el.value;
+
+		// the annotations from klabler
+		var klabel_annotations = labeler.get_annotations();
+		var labels = klabel_annotations_to_labels(klabel_annotations);
+
+		var labeling_times = [];
+		klabel_annotations.forEach( img => {
+			labeling_times.push(img.labeling_time);
+		});
+
+		var labeling_results = {
+			task_id: task_id,
+			labeler_name: labeler_name,
+			labels: labels,
+			labeling_times: labeling_times
+		};
+
+		annotations_since_last_save = 0;
+
+		fetch('/labeling_api/store_labels', {
+			method: 'POST',
+			headers: {'Content-Type': 'application/json'},
+  			body: JSON.stringify(labeling_results),
+		})
+			.then(response => {
+	 			if (response.status !== 200) {
+	 				console.log("problem: " + response.status);
+	 			}
+	 			return response.json();
+			})
+			.then(data => {
+	  			console.log('Success:', data);
+			})
+			.catch(error => {
+	  			console.error('Error:', error);
+			});
+	}
+
+	function handle_annotation_changed() {
+		
+		update_labeler_stats();
+
+		annotations_since_last_save++;
+
+		// save every 10 annotations
+		if (annotations_since_last_save > 10)
+			handle_save_results();	
+	}
+
+	function handle_frame_changed(frame_num) {
+		cursor_el.innerHTML = "Image " + frame_num + " of " + num_datapoints;
+	}
+
+	function handle_goto_first() {
+		labeler.set_current_frame_num(0);
+	}
+
+	function handle_goto_last() {
+		labeler.set_current_frame_num(num_datapoints-1);		
+	}
+
+	function handle_goto_next_by_category(cat) {
+		var labels = klabel_annotations_to_labels(labeler.get_annotations());
+		var current_frame_num = labeler.get_current_frame_num();
+
+		// search from the current frame forward
+		for (var i=current_frame_num+1; i<num_datapoints; i++) {
+			if (labels[i] == cat) {
+				labeler.set_current_frame_num(i);
+				return;
+			}
+		}
+
+		// start back at the start and search up to the current frame num
+		for (var i=0; i<current_frame_num; i++) {
+			if (labels[i] == cat) {
+				labeler.set_current_frame_num(i);	
+				return;
+			}
+		}
+	}
+
+	function handle_goto_next_unlabeled() {
+		handle_goto_next_by_category(Annotation.INVALID_CATEGORY);
 	}
 
 	function handle_onload() {
 
+		cursor_el = document.getElementById("cursor_el");
+		labeler_stats_div = document.getElementById("labeler_stats_div");
+
 		const url_params = new URLSearchParams(window.location.search);
-		if (url_params.has("taskid")) {
+		if (url_params.has("task_id")) {
     		var el = document.getElementById("task_id_box");
-    		el.value = url_params.get("taskid");
+    		el.value = url_params.get("task_id");
 		}
 		if (url_params.has("labeler")) {
     		var el = document.getElementById("labeler_id_box");
@@ -157,9 +347,14 @@
 		var main_canvas = document.getElementById("main_canvas");
 
 		labeler.init(main_canvas);
-		labeler.set_annotation_mode(Annotation.ANNOTATION_MODE_PER_FRAME);
+		labeler.set_frame_changed_listener(handle_frame_changed);
+		labeler.set_annotation_changed_listener(handle_annotation_changed);
+		labeler.set_annotation_mode(Annotation.ANNOTATION_MODE_PER_FRAME_CATEGORY);
 		labeler.set_play_audio(false);
 		labeler.set_letterbox(true);
+		labeler.set_retain_zoom(false);
+		labeler.set_crosshairs_viz(false);
+		labeler.set_background_color("#e0e0e0");
 	}
 
 </script>
@@ -168,22 +363,29 @@
 
 <body onload="handle_onload()">
 
-<p>
+<div>
 	Task: <input type="text" id="task_id_box" style="width: 300px;" onchange="" />
 	Labeler: <input type="text" id="labeler_id_box" style="width: 250px" onchange="" />
 	<button id="get_data_button" type="button" onclick="handle_start_labeling_task()">Get Task</button>
-</p>
+	<button id="post_results_button" type="button" onclick="handle_save_results()">Save Results</button>
+</div>
 
 <div id="main_div" style="visibility: hidden;">
-<p>
+<div id="task_info_div" style="padding: 4px 0px 4px 0px; font-style: italic;"></div>	
 <div>
-	<canvas id="main_canvas" width="960" height="500" style="border: 1px solid #c0c0c0;" ></canvas>
+	<canvas id="main_canvas" width="960" height="500" tabindex="0" style="border: 1px solid #c0c0c0;" ></canvas>
 </div>
-<p>
-<div id="task_info_div"></div>	
+<div style="padding-top: 6px;">
+	<span id="cursor_el" style="width: 100px;"></span>
+    <button id="get_data_button" type="button" onclick="handle_goto_first()">First</button>
+    <button id="get_data_button" type="button" onclick="handle_goto_next_unlabeled()">Next Unlabeled</button>
+	<button id="post_results_button" type="button" onclick="handle_goto_last()">Last</button>
+</div>
+<div id="labeler_help_div" style="padding-top: 6px;"></div>
+<h3>Label Counts</h3>
+<div id="labeler_stats_div"></div>
+</div>
 </p>
-</div>
-
 
 </body>
 </html>
