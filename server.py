@@ -65,6 +65,8 @@ def store_labels():
 
 	filename = make_filename(task_id)
 
+	print("Saving to: %s" % filename)
+
 	if os.path.exists(filename):
 		task = LabelingTask()
 		task.load(filename)
@@ -77,6 +79,7 @@ def store_labels():
 		task.add_labeler_results(labeler_name, labels)
 		task.add_labeling_times(labeler_name, labeling_times)
 		task.save(filename)
+
 
 	return jsonify("Success")
 
