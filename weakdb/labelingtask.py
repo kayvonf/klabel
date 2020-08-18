@@ -10,6 +10,7 @@ class LabelingTask:
 		self.task_id = self.generate_task_id()
 		self.description = ""
 		self.datapoint_urls = []
+		self.datapoint_boxes = []
 		self.categories = {}
 		self.labeler_results = {}
 
@@ -28,6 +29,9 @@ class LabelingTask:
 
 	def set_datapoints(self, datapoint_urls):
 		self.datapoint_urls = datapoint_urls
+
+	def set_datapoint_boxes(self, datapoint_boxes):
+		self.datapoint_boxes = datapoint_boxes
 
 	# Set the list of category names
 	# The klabeler UI keys and colors will be mapped to the categories automatically
@@ -89,6 +93,11 @@ class LabelingTask:
 		else:
 			self.labeler_results[labeler_name] = { "labeling_times" : labeling_times}
 
+	def get_labeler_results(self, labeler_name):
+		if labeler_name in self.labeler_results:
+			return self.labeler_results[labeler_name]["labels"]
+		return []
+
 	def print_stats(self):
 
 		counts = [0 for x in range(10)]
@@ -144,6 +153,7 @@ class LabelingTask:
 			"description" : self.description,
 			"categories" : self.categories,
 			"datapoint_urls" : self.datapoint_urls,
+			"datapoint_boxes" : self.datapoint_boxes,
 			"labeler_results" : self.labeler_results
 		}
 		return task_info
@@ -151,10 +161,12 @@ class LabelingTask:
 	def load(self, filename):
 		with open(filename, "rt") as f:
 			task_info = json.load(f)
-			self.task_id = task_info["task_id"]
+			self.task_id = task_info["task_id"] 
 			self.description = task_info["description"]
 			self.categories = task_info["categories"]
 			self.datapoint_urls = task_info["datapoint_urls"]
+			if "datapoint_boxes" in task_info:
+				self.datapoint_boxes = task_info["datapoint_boxes"]
 			self.labeler_results = task_info["labeler_results"]		
 
 	def save(self, filename):
