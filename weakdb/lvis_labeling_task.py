@@ -17,8 +17,10 @@ datapoints = []
 for f in glob.glob(os.path.join(IMAGE_DIR, "*.jpg")):
 	datapoints.append(f)
 
+CATEGORY_TO_LABEL = "BEER BOTTLE"
+
 task = LabelingTask()
-task.set_description("Label the BEER BOTTLE category in LVIS val set")
+task.set_description("Label the %s category in LVIS val set" % CATEGORY_TO_LABEL)
 task.set_datapoints(datapoints)
 
 # In addition to positive/negative for the category at hand, I created two additional
@@ -37,6 +39,7 @@ task.set_datapoints(datapoints)
 task.set_category_mapping( {
 	"beer bottle"     : {"value" : 1, "color" : "rgba(103, 191, 92, .75)" },
 	"background"      : {"value" : 2, "color" : "rgba(237, 102, 93, .75)" },
+	"hard negative"   : {"value":  8, "color" : "rgba(114, 158, 206, .75)"},
 	"not sure"        : {"value" : 9, "color" : "rgba(255, 193, 86, .75)" }, 
 	"flagged"         : {"value" : 0, "color" : "rgba(255, 193, 86, .75)" } })
 
