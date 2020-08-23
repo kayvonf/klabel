@@ -638,6 +638,7 @@ class ImageLabeler {
 			this.draw_inprogress_zoom_bbox(ctx, canvas_zoom_corner_points, canvas_cursor_pt);
 		}
 
+    this.save_annotation_to_local_storage();
 	}
 
 	handle_image_load(image_index) {
