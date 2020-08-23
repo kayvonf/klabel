@@ -278,26 +278,13 @@ class ImageLabeler {
 		this.render();
 	}
 
-  set_annotation_note(n) {
+  set_annotation_note(note) {
 
 		var cur_frame = this.get_current_frame();
     var selected = this.get_selected_annotation();
 
     if (selected != -1) {
       if (cur_frame.data.annotations[selected].type == Annotation.ANNOTATION_MODE_POINT) {
-
-        let note;
-        if (n == 1) note = "serve";
-        if (n == 2) note = "fh_topspin";
-        if (n == 3) note = "bh_topspin";
-        if (n == 4) note = "fh_slice";
-        if (n == 5) note = "bh_slice";
-        if (n == 6) note = "fh_volley";
-        if (n == 7) note = "bh_volley";
-        if (n == 8) note = "overhead";
-        if (n == 9) note = "special";
-        if (n == 0) note = "bounce";
-
         cur_frame.data.annotations[selected].note = note;
       }
     }
@@ -706,7 +693,7 @@ class ImageLabeler {
 	}
 
   handle_keyup = event => {
-		// console.log("KeyUp: " + event.keyCode);
+		console.log("KeyUp: " + event.keyCode);
 
     // Spacebar: frame annotation
     if (event.keyCode == 32) {
@@ -720,7 +707,7 @@ class ImageLabeler {
 			}
 
     // Delete/Backspace: delete selected annotation
-		} else if (event.keyCode == 8 || event.keyCode == 81) {
+		} else if (event.keyCode == 8) {
 			this.delete_annotation();
 
     // 'z': Zoom Mode
@@ -729,8 +716,25 @@ class ImageLabeler {
 			this.clear_zoom_corner_points();
 		}
 
-    else if (event.keyCode > 47 && event.keyCode < 58) {
-      this.set_annotation_note(event.keyCode - 48);
+    else {
+      let note = "";
+
+      if ((event.keyCode - 48) === 1) note = "serve";
+      if ((event.keyCode - 48) === 2) note = "fh_topspin";
+      if ((event.keyCode - 48) === 3) note = "bh_topspin";
+      if ((event.keyCode - 48) === 4) note = "fh_slice";
+      if ((event.keyCode - 48) === 5) note = "bh_slice";
+      if ((event.keyCode - 48) === 6) note = "fh_volley";
+      if ((event.keyCode - 48) === 7) note = "bh_volley";
+      if ((event.keyCode - 48) === 8) note = "overhead";
+      if ((event.keyCode - 48) === 9) note = "special";
+      if (event.keyCode === 81)       note = "bounce_in";
+      if (event.keyCode === 87)       note = "bounce_out";
+      if (event.keyCode === 69)       note = "bounce_net";
+
+      if (note !== "") {
+        this.set_annotation_note(note);
+      }
     }
 
 		this.render();
@@ -812,7 +816,7 @@ class ImageLabeler {
 		// this click completes a new point annotation
 		} else if (this.is_annotation_mode_point()) {
 
-			var new_annotation = new PointAnnotation(this.in_progress_points[0], "bounce");
+			var new_annotation = new PointAnnotation(this.in_progress_points[0], "bounce_in");
 			cur_frame.data.annotations.push(new_annotation);
 
 			console.log(`KLabeler: New point: ${new_annotation.pt.to_string()}`);
