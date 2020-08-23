@@ -35,9 +35,10 @@ class PerFrameAnnotation extends Annotation {
 }
 
 class PointAnnotation extends Annotation {
-	constructor(pt) {
+	constructor(pt, note) {
 		super(Annotation.ANNOTATION_MODE_POINT);
 		this.pt = pt;
+    this.note = note;
 	}
 }
 
@@ -227,7 +228,7 @@ class ImageLabeler {
 		var smallest_area = Number.MAX_VALUE;
 		for (var i=0; i<cur_frame.data.annotations.length; i++) {
 			
-			if (cur_frame.data.annotations[i].type == Annotation.ANNOTATION_MODE_POINT) {
+      if (cur_frame.data.annotations[i].type == Annotation.ANNOTATION_MODE_POINT) {
 
         var p = cur_frame.data.annotations[i].pt;
         var d = (image_cursor_pt.x - p.x)**2 + (image_cursor_pt.y - p.y)**2;
@@ -276,6 +277,31 @@ class ImageLabeler {
 
 		this.render();
 	}
+
+  set_annotation_note(n) {
+
+		var cur_frame = this.get_current_frame();
+    var selected = this.get_selected_annotation();
+
+    if (selected != -1) {
+      if (cur_frame.data.annotations[selected].type == Annotation.ANNOTATION_MODE_POINT) {
+
+        let note;
+        if (n == 1) note = "serve";
+        if (n == 2) note = "fh_topspin";
+        if (n == 3) note = "bh_topspin";
+        if (n == 4) note = "fh_slice";
+        if (n == 5) note = "bh_slice";
+        if (n == 6) note = "fh_volley";
+        if (n == 7) note = "bh_volley";
+        if (n == 8) note = "overhead";
+        if (n == 9) note = "special";
+        if (n == 0) note = "bounce";
+
+        cur_frame.data.annotations[selected].note = note;
+      }
+    }
+  }
 
 	toggle_per_frame_annotation() {
 
@@ -499,7 +525,7 @@ class ImageLabeler {
 			var is_selected = (selected == ann_index);
 
 			// draw a point annotation
-			if (ann.type == Annotation.ANNOTATION_MODE_POINT) {
+      if (ann.type == Annotation.ANNOTATION_MODE_POINT) {
 
 				// do not render points that lie outside the visible region (when zoomed)
 				if (!this.visible_image_region.inside(ann.pt))
@@ -513,9 +539,13 @@ class ImageLabeler {
 				} else {
 					ctx.fillStyle = this.color_point_fill;						
 				}
-				ctx.beginPath();
-  				ctx.arc(canvas_pt.x, canvas_pt.y, this.extreme_point_radius, 0, full_circle_angle, false);
-		        ctx.fill();
+
+        ctx.fillText(ann.note, canvas_pt.x, canvas_pt.y - 10);
+
+        ctx.beginPath();
+        ctx.arc(canvas_pt.x, canvas_pt.y, this.extreme_point_radius, 0, full_circle_angle, false);
+        ctx.fill();
+
 
 		    // draw bounding box annotation
 			} else if (ann.type == Annotation.ANNOTATION_MODE_TWO_POINTS_BBOX ||
@@ -675,7 +705,7 @@ class ImageLabeler {
 	}
 
   handle_keyup = event => {
-		//console.log("KeyUp: " + event.keyCode);
+		// console.log("KeyUp: " + event.keyCode);
 
     // Spacebar: frame annotation
     if (event.keyCode == 32) {
@@ -697,6 +727,10 @@ class ImageLabeler {
 			this.zoom_key_down = false;
 			this.clear_zoom_corner_points();
 		}
+
+    else if (event.keyCode > 47 && event.keyCode < 58) {
+      this.set_annotation_note(event.keyCode - 48);
+    }
 
 		this.render();
 	}
@@ -777,7 +811,7 @@ class ImageLabeler {
 		// this click completes a new point annotation
 		} else if (this.is_annotation_mode_point()) {
 
-			var new_annotation = new PointAnnotation(this.in_progress_points[0]);
+			var new_annotation = new PointAnnotation(this.in_progress_points[0], "bounce");
 			cur_frame.data.annotations.push(new_annotation);
 
 			console.log(`KLabeler: New point: ${new_annotation.pt.to_string()}`);
