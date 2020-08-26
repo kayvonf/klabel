@@ -51,6 +51,10 @@
                 labeler.init(main_canvas);
                 labeler.set_annotation_mode(Annotation.ANNOTATION_MODE_EXTREME_POINTS_BBOX);
 
+                // Initialize file input
+                const fileInput = document.getElementById("upload_file");
+                fileInput.addEventListener("change", load_frames_from_file, false);
+
                 // Initialize UI buttons and set labeler accordingly
                 var select = document.getElementById("select_annotation_mode");
                 select.value = "box_extreme_points";
@@ -240,6 +244,21 @@
                 get_frames_and_update_labeler(current_video, current_point);
             }
 
+            function load_frames_from_file() {
+                var reader = new FileReader();
+                reader.onload = (e) => {
+                    let j = JSON.parse(reader.result);
+                    for (var k in j) {
+                        let update = JSON.parse(j[k]);
+                        let f = labeler.get_current_frame();
+                        f.data.annotations = [...f.data.annotations, ...update];
+                        localStorage.setItem(k, JSON.stringify(f.data.annotations));
+                        labeler.render()
+                    }
+                };
+                reader.readAsText(this.files[0]);
+            }
+
         </script>
     </head>
 
@@ -264,6 +283,12 @@
                     <td>
                         <select id="select_point" onchange="load_frames_for_selection()">
                         </select>
+                    </td>
+                    <td>
+                        Load in annotations from file:
+                    </td>
+                    <td>
+                        <input type="file" accept="*" name="upload_file" id="upload_file" />
                     </td>
                 </tr>
             </table>
