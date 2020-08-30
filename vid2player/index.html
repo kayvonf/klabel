@@ -395,7 +395,7 @@
 
 
             <p>
-            <div class="bold_text">Point Types</div>
+            <div class="bold_text">Shot/bounce Types</div>
             <div>(1) serve</div>
             <div>(2) fh_topspin</div>
             <div>(3) bh_topspin</div>
@@ -408,6 +408,17 @@
             <div>(q) bounce_in</div>
             <div>(w) bounce_out</div>
             <div>(e) bounce_net</div>
+            </p>
+
+            <p>
+            <div class="bold_text">Rules for Vid2Player</div>
+            <div>(1) Please label contact point, shot type and bounce point for all shots of two players</div>
+            <div>(2) Contact point: click on the ball's position at the frame of contact</div>
+            <div>(3) Bounce point: click on the ball's position at the time of ball bounce; The last bounce </div>
+            <div>(4) Shot/bounce type: type numbers/letters shown above when hovering over the contact/bounce point</div>
+            <div>(5) <strong>Please make sure contact and bounce are labeled in pairs: (a) if the point starts after serve, please ignore its contact and bounce, start with the first visible contact (b) if the next shot is volley, please roughly estimate a bounce point (position and time), please label all bounces in time order</strong></div>
+            <div>(6) By default, all bounces except the last one should be labeled as "bounce_in", the last bounce type should indicate the point outcome. i.e. "bounce_in" for winner, "bounce_out" for out, "bounce_net" for net error. Please estimate a bounce point (position and time) if the ball is hit into net. 
+            <div>(7) An example labeling for a point is provided, at the top page, please set the Video and Point to "example_video", "example_point", and choose file "klabel/vid2player/example_annotation.json" to load the example, and then go through the frames to check the annotation.  
             </p>
 
     </body>
