@@ -248,11 +248,9 @@
                 var reader = new FileReader();
                 reader.onload = (e) => {
                     let j = JSON.parse(reader.result);
+                    console.log("j: ", j)
                     for (var k in j) {
-                        let update = JSON.parse(j[k]);
-                        let f = labeler.get_current_frame();
-                        f.data.annotations = [...f.data.annotations, ...update];
-                        localStorage.setItem(k, JSON.stringify(f.data.annotations));
+                        localStorage.setItem(k, j[k]);
                         labeler.render()
                     }
                 };
