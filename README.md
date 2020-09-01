@@ -1,4 +1,4 @@
-# klabel
+# klabel for Vid2Player
 
 This branch is designed for manual annotations of tennis videos for Vid2Player project.
 
@@ -21,9 +21,11 @@ Before you start, download the video frames and put them under `klabel/vid2playe
 
 ### Install
 1. Install flask for local file server
-```pip3 install flask flask-cors```
+```
+pip3 install flask flask-cors
+```
 
-2. Enter `klabel/vid2player/fileserver` and Launch the file server
+2. Enter `klabel/vid2player/fileserver` and launch the file server
 ```
 bash ./launch.sh
 ```
@@ -37,6 +39,6 @@ For using Olimar as file server:
 
 ### Get started
 
-1. Open `kalbel/vid2player/index.html` , read the new instructions at the bottom and take a look at the example, you are ready to go
+1. Open `kalbel/vid2player/index.html` in chrome, read the instructions on the page and take a look at the example annotations, you can also watch this video to get started. Then you are ready to go.
 
-2. After done labeling, just click `Persist Annotations` and save the json file
+2. After you finish labeling, just click `Persist Annotations` and save the json file
