@@ -32,7 +32,7 @@ bash ./launch.sh
 
 ### Get started
 
-1. Enter `kalbel/vid2player/` in your file browser and choose to open it in chrome, read the instructions on the page and take a look at the example annotations, you can also watch this video to get started. Then you are ready to go.
+1. In your file browser open `klabel/vid2player/index.html` in chrome, read the instructions on the page and take a look at the example annotations, you can also watch this video to get started. Then you are ready to go.
 
 2. After you finish labeling, just click `Persist Annotations` and save the json file
 
