@@ -411,14 +411,21 @@
             </p>
 
             <p>
-            <div class="bold_text">Rules for Vid2Player</div>
-            <div>(1) Please label contact point, shot type and bounce point for all shots of two players</div>
-            <div>(2) Contact point: click on the ball's position at the frame of contact</div>
-            <div>(3) Bounce point: click on the ball's position at the time of ball bounce; The last bounce </div>
+            <div class="bold_text">Instructions for Vid2Player annotation</div>
+            <div>(1) Please label contact point, shot type and bounce point for all shots of the two players</div>
+            <br>
+            <div>(2) Contact point: first find the frame when contact happens, then click on the ball's position as contact point. (If the real contact point is between two frames due to the low frame rate, please label the contact in the frame closer to the real contact. If it is hard to tell which is closer, you can choose the former frame between the two. In case the contact is in-between, you may also need to estimate the true contact point given the racket position, instead of simply mark the ball in that frame)</div>
+            <br>
+            <div>(3) Bounce point: click on the ball's position at the time of ball bounce </div>
+            <br>
             <div>(4) Shot/bounce type: type numbers/letters shown above when hovering over the contact/bounce point</div>
-            <div>(5) <strong>Please make sure contact and bounce are labeled in pairs: (a) if the point starts after serve, please ignore its contact and bounce, start with the first visible contact (b) if the next shot is volley, please roughly estimate a bounce point (position and time), please label all bounces in time order</strong></div>
-            <div>(6) By default, all bounces except the last one should be labeled as "bounce_in", the last bounce type should indicate the point outcome. i.e. "bounce_in" for winner, "bounce_out" for out, "bounce_net" for net error. Please estimate a bounce point (position and time) if the ball is hit into net. </div>
+            <br>
+            <div>(5) <strong>Please make sure you label N contact points and also N bounce points in a single point: (a) If the video starts after serve contact, please start your label with the first visible contact point (b) If the next shot is volley, please roughly estimate a bounce point (position and time), i.e. the timing will be volley contact at time T, estimated bounce at time T + m, volley bounce at time T + m + n </strong></div>
+            <br>
+            <div>(6) By default, all bounces except the last one should be labeled as "bounce_in", the last bounce type should indicate the point outcome. i.e. "bounce_in" for winner, "bounce_out" for out, "bounce_net" for net error. If the ball is hit into net, please estimate a bounce point (position and time) on the court if there was no net (no need to label the bounce point on the net). </div>
+            <br>
             <div>(7) Please label a half-volley as <strong>fh_volley</strong> or <strong>bh_volley</strong>. Half-volley means the player makes their shot near the serveline although they let the ball bounce before they strike the ball. </div>
+            <br>
             <div>(8) An example labeling is provided, at the top page. Please set the Video to be "example_video", and choose file "klabel/vid2player/example_annotation.json" to load the example annotations. Then you can check the two points and go through the frames to view the annotations.  </div>
             </p>
 

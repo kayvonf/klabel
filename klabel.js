@@ -524,10 +524,17 @@ class ImageLabeler {
 				if (is_selected) {
 					ctx.fillStyle = this.color_selected_point_fill;
 				} else {
-					ctx.fillStyle = this.color_point_fill;						
+					var bounce_types = ['bounce_in', 'bounce_net', 'bounce_out'];
+					if (bounce_types.includes(ann.note)) {
+						ctx.fillStyle = '#00ff00';
+					} else {
+						ctx.fillStyle = '#ffff00';
+					}
+					// ctx.fillStyle = this.color_point_fill;						
 				}
 
-        ctx.fillText(ann.note, canvas_pt.x, canvas_pt.y - 10);
+		ctx.font = "20px Georgia";
+        ctx.fillText(ann.note, canvas_pt.x, canvas_pt.y - 20);
 
         ctx.beginPath();
         ctx.arc(canvas_pt.x, canvas_pt.y, this.extreme_point_radius, 0, full_circle_angle, false);
