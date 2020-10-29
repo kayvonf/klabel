@@ -18,10 +18,11 @@ class Annotation {
 
 	static get INVALID_CATEGORY() { return -1; }
 
-	static get ANNOTATION_MODE_PER_FRAME_CATEGORY() { return 0; }
-	static get ANNOTATION_MODE_POINT() { return 1; }
-	static get ANNOTATION_MODE_TWO_POINTS_BBOX() { return 2; }
-	static get ANNOTATION_MODE_EXTREME_POINTS_BBOX() { return 3; }
+	static get ANNOTATION_MODE_NONE() { return 0; }
+	static get ANNOTATION_MODE_PER_FRAME_CATEGORY() { return 1; }
+	static get ANNOTATION_MODE_POINT() { return 2; }
+	static get ANNOTATION_MODE_TWO_POINTS_BBOX() { return 3; }
+	static get ANNOTATION_MODE_EXTREME_POINTS_BBOX() { return 4; }
 
 	constructor(type) {
 		this.type = type;
@@ -100,7 +101,8 @@ class ImageLabeler {
 		this.frames = [];
 
 		// annotation state
-		this.annotation_mode = Annotation.ANNOTATION_MODE_EXTREME_POINTS_BBOX;
+		this.keypress_annotation_mode = Annotation.ANNOTATION_MODE_NONE;
+		this.click_annotation_mode = Annotation.ANNOTATION_MODE_EXTREME_POINTS_BBOX;
 		this.category_to_name = [];
 		this.category_to_color = [];
 		this.in_progress_points = [];
@@ -204,24 +206,25 @@ class ImageLabeler {
 		return (this.cursorx >= 0 && this.cursory >= 0);
 	}
 
-	is_annotation_mode_per_frame_category() {
-		return this.annotation_mode == Annotation.ANNOTATION_MODE_PER_FRAME_CATEGORY;
+	is_keypress_annotation_mode_per_frame_category() {
+		return this.keypress_annotation_mode == Annotation.ANNOTATION_MODE_PER_FRAME_CATEGORY;
 	}
 
-	is_annotation_mode_point() {
-		return this.annotation_mode == Annotation.ANNOTATION_MODE_POINT;
+	is_click_annotation_mode_point() {
+		return this.click_annotation_mode == Annotation.ANNOTATION_MODE_POINT;
 	}
 
-	is_annotation_mode_two_point_bbox() {
-		return this.annotation_mode == Annotation.ANNOTATION_MODE_TWO_POINTS_BBOX;
+	is_click_annotation_mode_two_point_bbox() {
+		return this.click_annotation_mode == Annotation.ANNOTATION_MODE_TWO_POINTS_BBOX;
 	}
 
-	is_annotation_mode_extreme_points_bbox() {
-		return this.annotation_mode == Annotation.ANNOTATION_MODE_EXTREME_POINTS_BBOX;
+	is_click_annotation_mode_extreme_points_bbox() {
+		return this.click_annotation_mode == Annotation.ANNOTATION_MODE_EXTREME_POINTS_BBOX;
 	}
 
 	// Returns the index of the annotation that is the "selected annotation" given
 	// the current mouse position
+	// 
 	// Per-frame annotations cannot be "selected" since there is only one per frame.
 	// The main purpose of box/point annotation selection is to delete an annotation
 	// and a per-frame annotation can be changed/deleted in a single keypress.  
@@ -307,25 +310,24 @@ class ImageLabeler {
 		var cur_frame = this.get_current_frame();
 
 		// handle per-frame annotations a little differently since they cannot be selected
-		// just delete the annotation on the frame is the labeler is in per-frame annotation mode
-		if (this.is_annotation_mode_per_frame_category()) {
+		// just delete the annotation on the frame if the labeler is in per-frame annotation mode
+		if (this.is_keypress_annotation_mode_per_frame_category()) {
 
 			if (cur_frame.image_load_complete)
 				this.set_per_frame_category_annotation(Annotation.INVALID_CATEGORY);
+		}
 
 		// for all other annotations, the user must select them to delete them
-		} else {
+		var selected = this.get_selected_annotation();
 
-			var selected = this.get_selected_annotation();
+		if (selected != -1) {
+			cur_frame.data.annotations.splice(selected, 1);
+			//console.log("KLabeler: Deleted box " + selected);
 
-			if (selected != -1) {
-				cur_frame.data.annotations.splice(selected, 1);
-				//console.log("KLabeler: Deleted box " + selected);
-
-				if (this.annotation_changed_callback != null)
-					this.annotation_changed_callback();
-			}
+			if (this.annotation_changed_callback != null)
+				this.annotation_changed_callback();
 		}
+		
 
 		this.render();
 	}
@@ -626,9 +628,9 @@ class ImageLabeler {
 			ctx.lineWidth = 1;
 			ctx.strokeStyle = this.color_in_progress_box_outline; 
 
-			if (this.is_annotation_mode_extreme_points_bbox()) {
+			if (this.is_click_annotation_mode_extreme_points_bbox()) {
 				this.draw_inprogress_extreme_points_bbox(ctx, canvas_in_progress_points, canvas_cursor_pt);
-			} else if (this.is_annotation_mode_two_point_bbox()) {
+			} else if (this.is_click_annotation_mode_two_point_bbox()) {
 				this.draw_inprogress_two_points_bbox(ctx, canvas_in_progress_points, canvas_cursor_pt);
 			}
 		}
@@ -733,7 +735,7 @@ class ImageLabeler {
 
 	handle_keyup = event => {
 
-		if (this.is_annotation_mode_per_frame_category()) {
+		if (this.is_keypress_annotation_mode_per_frame_category()) {
 
 			// number key: 0-9
 			if (event.keyCode >= 48 && event.keyCode <= 57) {
@@ -789,7 +791,7 @@ class ImageLabeler {
 		this.in_progress_points.push(image_cursor_pt);		
 		//console.log("KLabeler: Click at (" + this.cursorx + ", " + this.cursory + "), image space=(" + image_cursor_pt.x + ", " + image_cursor_pt.y + "), point " + this.in_progress_points.length);
 
-		if (this.is_annotation_mode_extreme_points_bbox() && this.in_progress_points.length == 4) {
+		if (this.is_click_annotation_mode_extreme_points_bbox() && this.in_progress_points.length == 4) {
 
 			// discard box if this set of four extreme points is not a valid set of extreme points
 			if (!BBox2D.validate_extreme_points(this.in_progress_points)) {
@@ -806,7 +808,7 @@ class ImageLabeler {
 			this.clear_in_progress_points();
 
 		// this click completes a new corner point box annotation
-		} else if (this.is_annotation_mode_two_point_bbox() && this.in_progress_points.length == 2) {
+		} else if (this.is_click_annotation_mode_two_point_bbox() && this.in_progress_points.length == 2) {
 
 			// validate box by discarding empty boxes.
 			if (this.in_progress_points[0].x == this.in_progress_points[1].x &&
@@ -824,7 +826,7 @@ class ImageLabeler {
 			this.clear_in_progress_points();
 
 		// this click completes a new point annotation
-		} else if (this.is_annotation_mode_point()) {
+		} else if (this.is_click_annotation_mode_point()) {
 
 			var new_annotation = new PointAnnotation(this.in_progress_points[0]);
 			this.add_annotation(new_annotation);
@@ -866,8 +868,15 @@ class ImageLabeler {
 		this.render();
 	}
 
-	set_annotation_mode(mode) {
-		this.annotation_mode = mode;
+	set_keypress_annotation_mode(mode) {
+		this.keypress_annotation_mode = mode;
+		this.clear_in_progress_points();
+		this.clear_zoom_corner_points();
+		this.render();
+	}
+
+	set_click_annotation_mode(mode) {
+		this.click_annotation_mode = mode;
 		this.clear_in_progress_points();
 		this.clear_zoom_corner_points();
 		this.render();

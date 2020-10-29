@@ -349,7 +349,8 @@
 		labeler.init(main_canvas);
 		labeler.set_frame_changed_listener(handle_frame_changed);
 		labeler.set_annotation_changed_listener(handle_annotation_changed);
-		labeler.set_annotation_mode(Annotation.ANNOTATION_MODE_PER_FRAME_CATEGORY);
+		labeler.set_keypress_annotation_mode(Annotation.ANNOTATION_MODE_PER_FRAME_CATEGORY);
+		labeler.set_click_annotation_mode(Annotation.ANNOTATION_MODE_NONE);
 		labeler.set_play_audio(false);
 		labeler.set_letterbox(true);
 		labeler.set_retain_zoom(false);
