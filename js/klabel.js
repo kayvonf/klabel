@@ -89,6 +89,7 @@ class ImageLabeler {
 		// event callbacks
 		this.frame_changed_callback = null;
 		this.annotation_changed_callback = null;
+		this.render_callback = null;
 
 		// state for UI related to zooming
 		this.zoom_key_down = false;
@@ -646,6 +647,13 @@ class ImageLabeler {
 			this.draw_inprogress_zoom_bbox(ctx, canvas_zoom_corner_points, canvas_cursor_pt);
 		}
 
+
+		//
+		// render callback
+		//
+
+		if (this.render_callback != null)
+			this.render_callback(this.current_frame_index);
 	}
 
 	handle_image_load(image_index) {
@@ -928,6 +936,10 @@ class ImageLabeler {
 
 	set_annotation_changed_listener(func) {
 		this.annotation_changed_callback = func;
+	}
+
+	set_render_listener(func) {
+		this.render_callback = func;
 	}
 
 	make_image_load_handler(x) {
