@@ -23,6 +23,8 @@ class Annotation {
 	static get ANNOTATION_MODE_POINT() { return 2; }
 	static get ANNOTATION_MODE_TWO_POINTS_BBOX() { return 3; }
 	static get ANNOTATION_MODE_EXTREME_POINTS_BBOX() { return 4; }
+	static get ANNOTATION_MODE_NO_TEXT() { return 5; }
+	static get ANNOTATION_MODE_TEXT() { return 6; }
 
 	constructor(type) {
 		this.type = type;
@@ -47,14 +49,16 @@ class TwoPointBoxAnnotation extends Annotation {
 	constructor(corner_pts) {
 		super(Annotation.ANNOTATION_MODE_TWO_POINTS_BBOX);
 		this.bbox = BBox2D.two_points_to_bbox(corner_pts);
+		this.text = '';
 	}
 }
 
-class ExtremeBoxAnnnotation extends Annotation {
+class ExtremeBoxAnnotation extends Annotation {
 	constructor(extreme_points) {
 		super(Annotation.ANNOTATION_MODE_EXTREME_POINTS_BBOX);
 		this.bbox = BBox2D.extreme_points_to_bbox(extreme_points);
 		this.extreme_points = extreme_points;
+		this.text = '';
 	}
 }
 
@@ -103,9 +107,12 @@ class ImageLabeler {
 		// annotation state
 		this.keypress_annotation_mode = Annotation.ANNOTATION_MODE_NONE;
 		this.click_annotation_mode = Annotation.ANNOTATION_MODE_EXTREME_POINTS_BBOX;
+		this.text_annotation_mode = Annotation.ANNOTATION_MODE_NO_TEXT;
 		this.category_to_name = [];
 		this.category_to_color = [];
 		this.in_progress_points = [];
+		this.text_in_progress = false;
+		this.text_in_progress_ann = null;
 
 		// audio
 		this.audio_click_sound = null;
@@ -127,6 +134,19 @@ class ImageLabeler {
 		this.color_category_text_fill = '#000000';
 
 		this.category_text_font = "16px Arial";
+
+		this.bbox_text_font = "16px monospace";
+		this.text_right_margin_with_cursor = 12;
+		this.text_right_margin = 5;
+		this.text_left_margin = 2;
+		this.text_bottom_margin = 5;
+		this.text_box_height = 20;
+		this.text_cursor_x_offset = 4;
+		this.text_cursor_y_offset = 6;
+		this.text_cursor_width = 7;
+		this.text_cursor_height = 2;
+		this.text_box_fill_color = this.color_box_outline;
+		this.text_box_text_color = '#000000';
 
 		// display settings
 		this.visible_image_region = new BBox2D(0.0, 0.0, 1.0, 1.0);
@@ -222,6 +242,10 @@ class ImageLabeler {
 		return this.click_annotation_mode == Annotation.ANNOTATION_MODE_EXTREME_POINTS_BBOX;
 	}
 
+	is_text_annotation_mode() {
+		return this.text_annotation_mode == Annotation.ANNOTATION_MODE_TEXT;
+	}
+
 	// Returns the index of the annotation that is the "selected annotation" given
 	// the current mouse position
 	// 
@@ -275,6 +299,7 @@ class ImageLabeler {
 	clear_zoom_corner_points() {
 		this.zoom_corner_points = [];
 	}
+
 
 	// FIXME(kayvonf): unify this with add_annotation() just like there's a common
 	// interface for delete_annotation()
@@ -582,6 +607,35 @@ class ImageLabeler {
 					}
 
 					ctx.strokeRect(canvas_min.x, canvas_min.y, canvas_width, canvas_height);
+
+					// if text mode is on, draw text above the bbox
+					if (this.is_text_annotation_mode()) {
+						var ann_text_in_progress = this.text_in_progress && this.text_in_progress_ann == ann;
+
+						ctx.font = this.bbox_text_font;
+						var text_width = ctx.measureText(ann.text).width;
+
+						ctx.strokeStyle = this.text_box_fill_color;
+						ctx.fillStyle = this.text_box_fill_color;
+						var right_margin = ann_text_in_progress ? this.text_right_margin_with_cursor : this.text_right_margin;
+						ctx.fillRect(canvas_min.x, canvas_min.y - this.text_box_height,
+							text_width + right_margin + this.text_left_margin,
+							this.text_box_height);
+
+						ctx.fillStyle=this.text_box_text_color;
+						ctx.fillText(ann.text, canvas_min.x + this.text_left_margin,
+							canvas_min.y - this.text_bottom_margin);
+						
+						// draw a cursor if the text is in progress
+						if (ann_text_in_progress) {
+							ctx.fillStyle = this.text_box_text_color;
+							ctx.strokeStyle = this.text_box_text_color;
+							ctx.fillRect(canvas_min.x + text_width + this.text_cursor_x_offset,
+								canvas_min.y - this.text_cursor_y_offset,
+								this.text_cursor_width,
+								this.text_cursor_height);
+						}
+					}
 				}
 
 				// if this is a box created from extreme points, draw dots indicating all the extreme points
@@ -601,6 +655,7 @@ class ImageLabeler {
 				        ctx.fill();
 					}
 				}	
+
 			} else if (ann.type == Annotation.ANNOTATION_MODE_PER_FRAME_CATEGORY) {
 
 				// draw box around the display in the appropriate color to indicate the per-frame label
@@ -689,7 +744,19 @@ class ImageLabeler {
 	handle_keydown = event => {
 		//console.log("KeyDown: " + event.keyCode);
 
-		if (event.keyCode == 37) {   // left arrow
+		if (this.text_in_progress) { // if typing, override other behavior
+			if (event.keyCode == 27 || // ESC key
+				event.keyCode == 13    // enter key
+			) {
+				this.text_in_progress = false;
+				this.text_in_progress_ann = null;
+				this.render();
+			} else if (event.keyCode == 8) { // backspace
+				if (this.text_in_progress_ann.text.length > 0) {
+					this.text_in_progress_ann.text = this.text_in_progress_ann.text.slice(0, -1);
+				}
+			}
+		} else if (event.keyCode == 37) {   // left arrow
 			if (this.current_frame_index > 0)
 				this.set_current_frame_num(this.current_frame_index-1);
 			else
@@ -734,7 +801,6 @@ class ImageLabeler {
 	}
 
 	handle_keyup = event => {
-
 		if (this.is_keypress_annotation_mode_per_frame_category()) {
 
 			// number key: 0-9
@@ -750,15 +816,23 @@ class ImageLabeler {
 			}
 		}
 
-		if (event.keyCode == 8) {            // delete/bksp key
-			this.delete_annotation();
+		if (!this.text_in_progress) { // if typing, override other behavior
+			if (event.keyCode == 8) {            // delete/bksp key
+				this.delete_annotation();
 
-		} else if (event.keyCode == 90) {   // 'z' key (zoom mode)
-			this.zoom_key_down = false;
-			this.clear_zoom_corner_points();
+			} else if (event.keyCode == 90) {   // 'z' key (zoom mode)
+				this.zoom_key_down = false;
+				this.clear_zoom_corner_points();
+			}
 		}
 
 		this.render();
+	}
+
+	handle_keypress = event => {
+		if (this.text_in_progress) {
+			this.text_in_progress_ann.text += String.fromCharCode(event.which);
+		}
 	}
 
 	handle_canvas_click = event => {
@@ -788,7 +862,9 @@ class ImageLabeler {
 			return;
 		}
 
-		this.in_progress_points.push(image_cursor_pt);		
+		if (!this.text_in_progress) { // if typing, disable clicking
+			this.in_progress_points.push(image_cursor_pt);
+		}
 		//console.log("KLabeler: Click at (" + this.cursorx + ", " + this.cursory + "), image space=(" + image_cursor_pt.x + ", " + image_cursor_pt.y + "), point " + this.in_progress_points.length);
 
 		if (this.is_click_annotation_mode_extreme_points_bbox() && this.in_progress_points.length == 4) {
@@ -801,8 +877,12 @@ class ImageLabeler {
 				return;
 			}
 
-			var new_annotation = new ExtremeBoxAnnnotation(this.in_progress_points);
+			var new_annotation = new ExtremeBoxAnnotation(this.in_progress_points);
 			this.add_annotation(new_annotation);
+			if (this.is_text_annotation_mode()) {
+				this.text_in_progress = true;
+				this.text_in_progress_ann = new_annotation;
+			}
 			//console.log("KLabeler: New box: x=[" + new_annotation.bbox.bmin.x + ", " + new_annotation.bbox.bmax.x + "], y=[" + new_annotation.bbox.bmin.y + ", " + new_annotation.bbox.bmax.y + "]");
 
 			this.clear_in_progress_points();
@@ -821,6 +901,10 @@ class ImageLabeler {
 
 			var new_annotation = new TwoPointBoxAnnotation(this.in_progress_points);
 			this.add_annotation(new_annotation);
+			if (this.is_text_annotation_mode()) {
+				this.text_in_progress = true;
+				this.text_in_progress_ann = new_annotation;
+			}
 			//console.log("KLabeler: New box: x=[" + new_annotation.bbox.bmin.x + ", " + new_annotation.bbox.bmax.y + "], y=[" + new_annotation.bbox.bmin.y + ", " + new_annotation.bbox.bmax.y + "]");
 
 			this.clear_in_progress_points();
@@ -877,6 +961,13 @@ class ImageLabeler {
 
 	set_click_annotation_mode(mode) {
 		this.click_annotation_mode = mode;
+		this.clear_in_progress_points();
+		this.clear_zoom_corner_points();
+		this.render();
+	}
+
+	set_text_annotation_mode(mode) {
+		this.text_annotation_mode = mode;
 		this.clear_in_progress_points();
 		this.clear_zoom_corner_points();
 		this.render();
@@ -1005,6 +1096,7 @@ class ImageLabeler {
 
 		this.main_canvas_el.addEventListener("keydown", this.handle_keydown, false);
 		this.main_canvas_el.addEventListener("keyup", this.handle_keyup, false);
+		this.main_canvas_el.addEventListener("keypress", this.handle_keypress, false);
 
 		this.audio_click_sound = new Audio("media/click_sound2.mp3");
 		this.audio_box_done_sound = new Audio("media/click_sound3.mp3");
