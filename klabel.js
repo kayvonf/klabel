@@ -524,11 +524,12 @@ class ImageLabeler {
 				if (is_selected) {
 					ctx.fillStyle = this.color_selected_point_fill;
 				} else {
-					var bounce_types = ['bounce_in', 'bounce_net', 'bounce_out'];
-					if (bounce_types.includes(ann.note)) {
+					if (ann.note == 'center') {
 						ctx.fillStyle = '#00ff00';
-					} else {
+					} else if (ann.note == 'left') {
 						ctx.fillStyle = '#ffff00';
+					} else if (ann.note == 'right') {
+						ctx.fillStyle = '#ff00ff';
 					}
 					// ctx.fillStyle = this.color_point_fill;						
 				}
@@ -725,19 +726,9 @@ class ImageLabeler {
 
     else {
       let note = "";
-
-      if ((event.keyCode - 48) === 1) note = "serve";
-      if ((event.keyCode - 48) === 2) note = "fh_topspin";
-      if ((event.keyCode - 48) === 3) note = "bh_topspin";
-      if ((event.keyCode - 48) === 4) note = "fh_slice";
-      if ((event.keyCode - 48) === 5) note = "bh_slice";
-      if ((event.keyCode - 48) === 6) note = "fh_volley";
-      if ((event.keyCode - 48) === 7) note = "bh_volley";
-      if ((event.keyCode - 48) === 8) note = "overhead";
-      if ((event.keyCode - 48) === 9) note = "special";
-      if (event.keyCode === 81)       note = "bounce_in";
-      if (event.keyCode === 87)       note = "bounce_out";
-      if (event.keyCode === 69)       note = "bounce_net";
+	  if ((event.keyCode - 48) === 1) note = "center";
+      if ((event.keyCode - 48) === 2) note = "left";
+      if ((event.keyCode - 48) === 3) note = "right";
 
       if (note !== "") {
         this.set_annotation_note(note);
@@ -823,7 +814,7 @@ class ImageLabeler {
 		// this click completes a new point annotation
 		} else if (this.is_annotation_mode_point()) {
 
-			var new_annotation = new PointAnnotation(this.in_progress_points[0], "bounce_in");
+			var new_annotation = new PointAnnotation(this.in_progress_points[0], "center");
 			cur_frame.data.annotations.push(new_annotation);
 
 			console.log(`KLabeler: New point: ${new_annotation.pt.to_string()}`);
@@ -966,6 +957,28 @@ class ImageLabeler {
     var dt = `${d.getFullYear()}_${d.getMonth() + 1}_${d.getDate()}_${d.getHours()}_${d.getMinutes()}_${d.getSeconds()}`;
     download(localStorage, `klabeler_${dt}.json`);
   }
+
+  	validate_annotations() {
+		console.log("Validating annotations ... ")
+		for (var i = 0; i < this.frames.length; i++) {
+			var f = this.frames[i];
+			var invalid = false; 
+			if (f.data.annotations.length != 0) {
+				if (f.data.annotations.length != 3)
+					invalid = true;
+				else {
+					var notes = []
+					for (var j = 0; j < 3; j++){
+						notes.push(f.data.annotations[j].note)
+					}
+					if (!notes.includes('center') || !notes.includes('left') || !notes.includes('right'))
+						invalid = true;
+				}
+			}
+			if (invalid)
+				console.log(f.data.name, f.data.annotations)
+		} 
+	}
 
 	init(main_canvas_el) {
 
